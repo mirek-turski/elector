@@ -1,0 +1,12 @@
+server:
+  port : 8085
+
+spring:
+  application:
+    name: self-rule-demo
+  cloud:
+    config:
+      enabled: false
+    kubernetes:
+      discovery:
+        enabled: false

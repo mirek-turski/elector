@@ -1,0 +1,33 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: self-rule-demo
+spec:
+  selector:
+    app: self-rule-demo
+  ports:
+    - protocol: TCP
+      port: 8080
+      nodePort: 32101
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: self-rule-demo
+spec:
+  selector:
+    matchLabels:
+      app: self-rule-demo
+  replicas: 4
+  template:
+    metadata:
+      labels:
+        app: self-rule-demo
+    spec:
+      containers:
+        - name: self-rule-demo
+          image: self-rule-demo:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
