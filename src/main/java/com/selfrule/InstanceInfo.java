@@ -9,6 +9,8 @@ import java.io.Serializable;
 import java.time.Instant;
 import java.util.Arrays;
 
+import static com.selfrule.InstanceConstant.STATE_ACTIVE;
+
 /** Holds service instance information */
 @Data
 @Builder(toBuilder = true)
@@ -21,6 +23,14 @@ public class InstanceInfo implements Serializable {
   private int order;
   private final long weight;
   private transient Instant last;
+
+  public boolean isActive() {
+    return inState(STATE_ACTIVE);
+  }
+
+  public boolean isNotActive() {
+    return !inState(STATE_ACTIVE);
+  }
 
   public boolean inState(@NotNull String checkedState) {
     return checkedState.equals(this.state);

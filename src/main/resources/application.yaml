@@ -8,5 +8,30 @@ spring:
     config:
       enabled: false
     kubernetes:
+      enabled: false
       discovery:
         enabled: false
+  jackson:
+    serialization.INDENT_OUTPUT: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    metrics:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    root: ERROR
+    com.selfrule: TRACE

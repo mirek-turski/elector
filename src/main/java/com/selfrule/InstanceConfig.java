@@ -15,6 +15,7 @@ import org.springframework.integration.dsl.Transformers;
 import org.springframework.integration.ip.dsl.Udp;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import javax.annotation.Nullable;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
@@ -49,6 +50,8 @@ public class InstanceConfig {
 
   private int poolSize = 0;
 
+  private SelfRuleMode selfRuleMode = SelfRuleMode.ORDERED_INSTANCES;
+
   /**
    * Create this configuration
    *
@@ -59,9 +62,9 @@ public class InstanceConfig {
   }
 
   @Bean
-  public InstanceInfo selfInfo(PodUtils podUtils) {
+  public InstanceInfo selfInfo(@Nullable PodUtils podUtils) {
     InstanceInfo selfInfo;
-    final Pod current = podUtils.currentPod().get();
+    final Pod current = podUtils != null ? podUtils.currentPod().get() : null;
     final String id =
         current != null ? current.getMetadata().getUid() : UUID.randomUUID().toString();
     final long weight = (long) (System.currentTimeMillis() * Math.random());
@@ -91,7 +94,6 @@ public class InstanceConfig {
               .last(Instant.now())
               .build();
     }
-    log.info("This {}", selfInfo);
     return selfInfo;
   }
 

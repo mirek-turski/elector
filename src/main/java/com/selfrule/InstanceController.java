@@ -58,17 +58,6 @@ public class InstanceController
   private volatile Instant voteInitiationTime;
   private final CountDownLatch initializerLatch = new CountDownLatch(1);
 
-  /**
-   * Get the peers that are active with assigned order number > 0.
-   *
-   * @return Set of active peers
-   */
-  public Set<InstanceInfo> getAssignedPeers() {
-    return peers.values().stream()
-        .filter(instanceInfo -> instanceInfo.getOrder() > 0)
-        .collect(Collectors.toSet());
-  }
-
   /** Initiates peer management after application context gets refreshed */
   @EventListener(ContextRefreshedEvent.class)
   public void initialize() {
@@ -76,7 +65,7 @@ public class InstanceController
     peers.putAll(discoverPeers());
     if (peers.isEmpty()) {
       // No peers, so we immediately usurp the highest order
-      activate(ORDER_HIGHEST);
+      setInstanceReady(ORDER_HIGHEST, STATE_ACTIVE);
     } else {
       selfInfo.setState(STATE_INTRODUCED);
       vote();
@@ -216,6 +205,17 @@ public class InstanceController
     notifyPeers(prepareMessageEvent(id, properties), List.of(destination));
   }
 
+  /**
+   * Get the peers that are active with assigned order number > 0.
+   *
+   * @return Set of active peers
+   */
+  public Set<InstanceInfo> getAssignedPeers() {
+    return peers.values().stream()
+            .filter(instanceInfo -> instanceInfo.getOrder() > 0)
+            .collect(Collectors.toSet());
+  }
+
   private InstanceEvent prepareMessageEvent(
       @NotNull final String id, @Nullable final Map<String, String> properties) {
     Map<String, String> props = new HashMap<>();
@@ -241,7 +241,7 @@ public class InstanceController
           absentPeer -> {
             if (discoveredPeers.containsKey(absentPeer.getId())) {
               log.warn(
-                  "Heartbeat timeout occurred for pod {} with IP={}, "
+                  "Instance heartbeat timeout occurred for pod {} with IP={}, "
                       + "but it is still reported by Kubernetes",
                   absentPeer.getName(),
                   absentPeer.getIp());
@@ -249,7 +249,7 @@ public class InstanceController
               // What to do if the problem persists? Give it a bit more time and permanently remove?
               // For now, such an instance will be kept in the pool
             } else {
-              log.warn(
+              log.debug(
                   "Removing absent pod {} with IP={}", absentPeer.getName(), absentPeer.getIp());
               peers.remove(absentPeer.getId());
               eventPublisher.publishEvent(new InstanceRemovedEvent(this, absentPeer));
@@ -297,7 +297,7 @@ public class InstanceController
 
     if (Duration.between(voteInitiationTime, Instant.now()).toMillis()
         > config.getHeartbeatTimeoutMillis()) {
-      log.warn("Stale ballot? Voting again...");
+      log.debug("Stale ballot, voting again...");
       vote();
       return;
     }
@@ -317,22 +317,23 @@ public class InstanceController
         ballots.clear();
         voteInitiationTime = null;
         if (updatedSelfOrder == ORDER_UNASSIGNED) {
-          log.warn("Pool of instances exhausted. Marking this instance spare");
-          selfInfo.setState(STATE_SPARE);
+          log.debug("Pool of instances exhausted, marking this instance spare");
+          setInstanceReady(ORDER_UNASSIGNED, STATE_SPARE);
         } else {
-          log.info("Consensus reached. Activating this instance with order #{}", updatedSelfOrder);
-          activate(updatedSelfOrder);
+          log.debug("Consensus reached, activating this instance with order #{}", updatedSelfOrder);
+          setInstanceReady(updatedSelfOrder, STATE_ACTIVE);
         }
       } else {
-        log.warn("No consensus. Voting again...");
+        log.debug("No consensus, voting again...");
         vote();
       }
     }
   }
 
-  private void activate(int order) {
+  private void setInstanceReady(int order, final String state) {
     selfInfo.setOrder(order);
-    selfInfo.setState(STATE_ACTIVE);
+    selfInfo.setState(state);
+    log.info("This {}", selfInfo);
     notifyPeers(prepareHeartbeatEvent(), peers.values());
     eventPublisher.publishEvent(new InstanceReadyEvent(this, selfInfo));
   }
@@ -364,7 +365,7 @@ public class InstanceController
               log.trace("Sent {} to {}", event, peer.getIp());
             } else {
               peer.setState(STATE_ABSENT);
-              log.trace(
+              log.debug(
                   "Failed to notify pod {} with IP={}, marking as absent",
                   peer.getName(),
                   peer.getIp());
@@ -395,9 +396,11 @@ public class InstanceController
                       .build();
               discoveredPeers.put(info.getId(), info);
             });
-    log.info(
-        "Discovered peers: {}",
-        Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
+    if (!discoveredPeers.isEmpty()) {
+      log.info(
+          "Discovered peers: {}",
+          Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
+    }
     return discoveredPeers;
   }
 
@@ -445,8 +448,7 @@ public class InstanceController
     if (event == null
         || event.getProperties() == null
         || !event.getProperties().containsKey(name)) {
-      throw new IllegalStateException(
-          String.format("Expected %s property in %s", name, event));
+      throw new IllegalStateException(String.format("Expected %s property in %s", name, event));
     }
     return event.getProperties().get(name);
   }

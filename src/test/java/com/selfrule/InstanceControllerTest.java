@@ -1,9 +1,12 @@
 package com.selfrule;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.ApplicationEvent;
@@ -31,6 +34,12 @@ import static org.mockito.Mockito.*;
 @Slf4j
 public class InstanceControllerTest {
 
+  static {
+    LoggerContext loggerContext = (LoggerContext)LoggerFactory.getILoggerFactory();
+    loggerContext.getLogger("ROOT").setLevel(Level.ERROR);
+    loggerContext.getLogger("com.selfrule").setLevel(Level.TRACE);
+  }
+
   private final InstanceConfig config = new InstanceConfig("self-rule-test");
   final InstanceController controller = new InstanceController(config, null, null, null, null);
 
@@ -46,12 +55,14 @@ public class InstanceControllerTest {
 
   @Test
   public void testHighestOrderWithNoPeers() {
+    log.info("==================== Running testHighestOrderWithNoPeers");
     DummyKubernetes k8s = DummyKubernetes.builder().build();
     String ip = k8s.addPod();
     k8s.startPods(ip);
     ArgumentCaptor<InstanceReadyEvent> argumentCaptor =
         ArgumentCaptor.forClass(InstanceReadyEvent.class);
-    verify(k8s.getEventPublishers().get(ip), times(1)).publishEvent(argumentCaptor.capture());
+    verify(k8s.getEventPublishers().get(ip), timeout(3000).times(1))
+        .publishEvent(argumentCaptor.capture());
     InstanceInfo selfInfo = argumentCaptor.getValue().getSelfInfo();
     assertEquals(STATE_ACTIVE, selfInfo.getState());
     assertEquals(ORDER_HIGHEST, selfInfo.getOrder());
@@ -59,14 +70,17 @@ public class InstanceControllerTest {
 
   @Test
   public void testStartTwoInstancesSimultaneously() {
+    log.info("==================== Running testStartTwoInstancesSimultaneously");
     DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
     String ip1 = k8s.addPod();
     String ip2 = k8s.addPod();
     k8s.startPods(ip1, ip2);
 
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
-    verify(k8s.getEventPublishers().get(ip1), times(1)).publishEvent(eventCaptor.capture());
-    verify(k8s.getEventPublishers().get(ip2), times(1)).publishEvent(eventCaptor.capture());
+    verify(k8s.getEventPublishers().get(ip1), timeout(3000).times(1))
+        .publishEvent(eventCaptor.capture());
+    verify(k8s.getEventPublishers().get(ip2), timeout(3000).times(1))
+        .publishEvent(eventCaptor.capture());
     List<ApplicationEvent> events = eventCaptor.getAllValues();
 
     assertTrue(events.get(0) instanceof InstanceReadyEvent);
@@ -89,18 +103,22 @@ public class InstanceControllerTest {
 
   @Test
   public void testSpareInstanceOnPoolExhausted() {
+    log.info("==================== Running testSpareInstanceOnPoolExhausted");
     DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
     String ip1 = k8s.addPod();
     String ip2 = k8s.addPod();
     k8s.startPods(ip1, ip2);
     String ip3 = k8s.addPod();
     k8s.startPods(ip3);
-    verify(k8s.getEventPublishers().get(ip3), times(0)).publishEvent(any());
+    ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
+    verify(k8s.getEventPublishers().get(ip3), timeout(3000).times(1)).publishEvent(eventCaptor.capture());
+    assertTrue(eventCaptor.getValue() instanceof InstanceReadyEvent);
     assertTrue(getInfo(k8s.getController(ip3)).inState(STATE_SPARE));
   }
 
   @Test
   public void testDeletedInstanceReplacedWithSpare() {
+    log.info("==================== Running testDeletedInstanceReplacedWithSpare");
     DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
     log.info(">>>>>> Starting up two instances simultaneously");
     String ip1 = k8s.addPod();
@@ -116,12 +134,14 @@ public class InstanceControllerTest {
         .atMost(config.getHeartbeatTimeoutMillis() * 2L, TimeUnit.MILLISECONDS)
         .until(() -> getInfo(k8s.getController(ip3)).inState(STATE_ACTIVE));
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
-    verify(k8s.getEventPublishers().get(ip3), times(2)).publishEvent(eventCaptor.capture());
+    verify(k8s.getEventPublishers().get(ip3), timeout(3000).times(3))
+        .publishEvent(eventCaptor.capture());
     List<ApplicationEvent> events = eventCaptor.getAllValues();
-    assertTrue(events.get(0) instanceof InstanceRemovedEvent);
-    assertTrue(events.get(1) instanceof InstanceReadyEvent);
-    assertEquals(ip2, ((InstanceRemovedEvent) events.get(0)).getInstanceInfo().getIp());
-    InstanceInfo activatedInstance = ((InstanceReadyEvent) events.get(1)).getSelfInfo();
+    assertTrue(events.get(0) instanceof InstanceReadyEvent);
+    assertTrue(events.get(1) instanceof InstanceRemovedEvent);
+    assertTrue(events.get(2) instanceof InstanceReadyEvent);
+    assertEquals(ip2, ((InstanceRemovedEvent) events.get(1)).getInstanceInfo().getIp());
+    InstanceInfo activatedInstance = ((InstanceReadyEvent) events.get(2)).getSelfInfo();
     assertTrue(activatedInstance.inState(STATE_ACTIVE));
     assertEquals(ip3, activatedInstance.getIp());
     assertEquals(orderToClaim, activatedInstance.getOrder());
@@ -129,6 +149,7 @@ public class InstanceControllerTest {
 
   @Test
   public void testAbsentInstance() {
+    log.info("==================== Running testAbsentInstance");
     DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
     log.info(">>>>>> Starting up two instances simultaneously");
     String ip1 = k8s.addPod();
@@ -157,18 +178,14 @@ public class InstanceControllerTest {
 
   @Test
   public void testResolveOrderInvalidCandidateState() {
-    assertEquals(
-        12,
-        (int)
-            ReflectionTestUtils.invokeMethod(
-                controller,
-                "resolveOrder",
-                self.toBuilder().order(12).state(STATE_ACTIVE).build()));
-    assertEquals(
-        0,
-        (int)
-            ReflectionTestUtils.invokeMethod(
-                controller, "resolveOrder", self.toBuilder().state(STATE_DISCOVERED).build()));
+    Integer order =
+        ReflectionTestUtils.invokeMethod(
+            controller, "resolveOrder", self.toBuilder().order(12).state(STATE_ACTIVE).build());
+    assertEquals(12, order);
+    order =
+        ReflectionTestUtils.invokeMethod(
+            controller, "resolveOrder", self.toBuilder().state(STATE_DISCOVERED).build());
+    assertEquals(0, order);
   }
 
   @Test
