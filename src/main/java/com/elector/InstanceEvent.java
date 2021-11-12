@@ -1,4 +1,4 @@
-package com.selfrule;
+package com.elector;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;

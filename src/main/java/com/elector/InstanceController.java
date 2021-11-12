@@ -1,4 +1,4 @@
-package com.selfrule;
+package com.elector;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static com.selfrule.InstanceConstant.*;
+import static com.elector.InstanceConstant.*;
 
 /**
  * Manages instances of the service. The instances will be ordered starting from 0. Every new

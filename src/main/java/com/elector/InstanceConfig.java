@@ -1,4 +1,4 @@
-package com.selfrule;
+package com.elector;
 
 import io.fabric8.kubernetes.api.model.Pod;
 import lombok.Data;
@@ -22,7 +22,7 @@ import javax.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.UUID;
 
-import static com.selfrule.InstanceConstant.*;
+import static com.elector.InstanceConstant.*;
 
 /**
  * Together with {@link InstanceController} provides self-governing capabilities, like leadership

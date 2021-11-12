@@ -1,33 +1,33 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: self-rule-demo
+  name: elector-demo
 spec:
   selector:
-    app: self-rule-demo
+    app: elector-demo
   ports:
     - protocol: TCP
       port: 8080
       nodePort: 32101
   type: LoadBalancer
 ---
-apiVersion: apps/v1
 kind: Deployment
+apiVersion: apps/v1
 metadata:
-  name: self-rule-demo
+  name: elector-demo
 spec:
   selector:
     matchLabels:
-      app: self-rule-demo
+      app: elector-demo
   replicas: 4
   template:
     metadata:
       labels:
-        app: self-rule-demo
+        app: elector-demo
     spec:
       containers:
-        - name: self-rule-demo
-          image: self-rule-demo:latest
+        - name: elector-demo
+          image: elector-demo:latest
           imagePullPolicy: Never
           ports:
             - containerPort: 8080

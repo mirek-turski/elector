@@ -1,4 +1,4 @@
-package com.selfrule;
+package com.elector;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Builder;
@@ -10,7 +10,7 @@ import java.io.Serializable;
 import java.time.Instant;
 import java.util.Arrays;
 
-import static com.selfrule.InstanceConstant.*;
+import static com.elector.InstanceConstant.*;
 
 /** Holds service instance information */
 @Data

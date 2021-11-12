@@ -1,4 +1,4 @@
-package com.selfrule;
+package com.elector;
 
 import lombok.Getter;
 import lombok.ToString;

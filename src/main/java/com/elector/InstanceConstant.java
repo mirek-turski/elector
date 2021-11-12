@@ -1,4 +1,4 @@
-package com.selfrule;
+package com.elector;
 
 public final class InstanceConstant {
   public static final int ORDER_UNASSIGNED = 0;

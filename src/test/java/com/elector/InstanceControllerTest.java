@@ -1,4 +1,4 @@
-package com.selfrule;
+package com.elector;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
@@ -26,7 +26,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.selfrule.InstanceConstant.*;
+import static com.elector.InstanceConstant.*;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,10 +38,10 @@ public class InstanceControllerTest {
   static {
     LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
     loggerContext.getLogger("ROOT").setLevel(Level.ERROR);
-    loggerContext.getLogger("com.selfrule").setLevel(Level.DEBUG);
+    loggerContext.getLogger("com.elector").setLevel(Level.DEBUG);
   }
 
-  private final InstanceConfig config = new InstanceConfig("self-rule-test");
+  private final InstanceConfig config = new InstanceConfig("elector-test");
   final InstanceController controller = new InstanceController(config, null, null, null, null);
 
   InstanceInfo self =

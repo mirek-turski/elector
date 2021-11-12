@@ -1,7 +1,8 @@
 FROM openjdk:11
 VOLUME /tmp
 ARG JAR_FILE=target/*.jar
-ENV JAVA_OPTS="-Dspring.cloud.kubernetes.discovery.enabled=true \
+ENV JAVA_OPTS="-Dspring.cloud.kubernetes.enabled=true \
+-Dspring.cloud.kubernetes.discovery.enabled=true \
 -Dinstance.heartbeat-interval-millis=1000 \
 -Dinstance.heartbeat-timeout-millis=2000 \
 -Dinstance.pool-size=4"

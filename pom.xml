@@ -8,10 +8,10 @@
 		<version>2.4.12</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.turmi.soft</groupId>
-	<artifactId>self-rule-demo</artifactId>
+	<groupId>com.elector</groupId>
+	<artifactId>elector-demo</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>self-rule-demo</name>
+	<name>elector-demo</name>
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>11</java.version>

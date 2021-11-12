@@ -10,7 +10,7 @@ server:
 
 spring:
   application:
-    name: self-rule-demo
+    name: elector-demo
   cloud:
     config:
       enabled: false
@@ -41,4 +41,4 @@ management:
 logging:
   level:
     root: ERROR
-    com.selfrule: TRACE
+    com.elector: DEBUG
