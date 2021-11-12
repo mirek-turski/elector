@@ -100,6 +100,11 @@ public class InstanceController
       } else {
         // Respond to the candidate peer that requested it
         vote(peers.get(candidateId));
+        // If this instance is spare request for voting from another instance should also trigger
+        // vote for this one, but only if there is no vote in progress
+        if (selfInfo.isSpare() && voteInitiationTime == null) {
+          vote();
+        }
       }
     }
 
@@ -212,8 +217,18 @@ public class InstanceController
    */
   public Set<InstanceInfo> getAssignedPeers() {
     return peers.values().stream()
-            .filter(instanceInfo -> instanceInfo.getOrder() > 0)
-            .collect(Collectors.toSet());
+        .filter(instanceInfo -> instanceInfo.getOrder() > 0)
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Marks this instance as unassigned and spare one and initiates election.
+   * Result of the election is unknown.
+   */
+  public void resign() {
+    selfInfo.setState(STATE_SPARE);
+    selfInfo.setOrder(ORDER_UNASSIGNED);
+    vote();
   }
 
   private InstanceEvent prepareMessageEvent(
@@ -253,7 +268,7 @@ public class InstanceController
                   "Removing absent pod {} with IP={}", absentPeer.getName(), absentPeer.getIp());
               peers.remove(absentPeer.getId());
               eventPublisher.publishEvent(new InstanceRemovedEvent(this, absentPeer));
-              if (absentPeer.getOrder() > ORDER_UNASSIGNED && selfInfo.inState(STATE_SPARE)) {
+              if (absentPeer.isAssigned() && selfInfo.inState(STATE_SPARE)) {
                 vote();
               }
             }
@@ -331,11 +346,13 @@ public class InstanceController
   }
 
   private void setInstanceReady(int order, final String state) {
-    selfInfo.setOrder(order);
-    selfInfo.setState(state);
-    log.info("This {}", selfInfo);
-    notifyPeers(prepareHeartbeatEvent(), peers.values());
-    eventPublisher.publishEvent(new InstanceReadyEvent(this, selfInfo));
+    if (selfInfo.getOrder() != order || !selfInfo.inState(state)) {
+      selfInfo.setOrder(order);
+      selfInfo.setState(state);
+      log.info("This {}", selfInfo);
+      notifyPeers(prepareHeartbeatEvent(), peers.values());
+      eventPublisher.publishEvent(new InstanceReadyEvent(this, selfInfo));
+    }
   }
 
   private InstanceEvent prepareHeartbeatEvent() {
@@ -414,13 +431,13 @@ public class InstanceController
    */
   private int resolveOrder(@NotNull final InstanceInfo candidate) {
     if (candidate.inNeitherState(STATE_INTRODUCED, STATE_SPARE)) {
-      return candidate.inState(STATE_ACTIVE) ? candidate.getOrder() : ORDER_UNASSIGNED;
+      return candidate.isActive() ? candidate.getOrder() : ORDER_UNASSIGNED;
     }
     final List<Integer> takenOrderNumbers =
         Stream.concat(peers.values().stream(), Stream.of(selfInfo))
             .filter(
                 peer ->
-                    peer.inState(STATE_ACTIVE)
+                    peer.isActive()
                         || (peer.inState(STATE_ABSENT) && peer.getOrder() > ORDER_UNASSIGNED))
             .map(InstanceInfo::getOrder)
             .collect(Collectors.toList());

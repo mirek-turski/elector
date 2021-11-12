@@ -24,6 +24,7 @@ import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static com.selfrule.InstanceConstant.*;
 import static org.awaitility.Awaitility.await;
@@ -35,9 +36,9 @@ import static org.mockito.Mockito.*;
 public class InstanceControllerTest {
 
   static {
-    LoggerContext loggerContext = (LoggerContext)LoggerFactory.getILoggerFactory();
+    LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
     loggerContext.getLogger("ROOT").setLevel(Level.ERROR);
-    loggerContext.getLogger("com.selfrule").setLevel(Level.TRACE);
+    loggerContext.getLogger("com.selfrule").setLevel(Level.DEBUG);
   }
 
   private final InstanceConfig config = new InstanceConfig("self-rule-test");
@@ -51,6 +52,60 @@ public class InstanceControllerTest {
 
   private static InstanceInfo getInfo(InstanceController controller) {
     return (InstanceInfo) ReflectionTestUtils.getField(controller, "selfInfo");
+  }
+
+  @Test
+  public void testLeaderElection() {
+    log.info("==================== Running testLeaderElection");
+    DummyKubernetes k8s = DummyKubernetes.builder().poolSize(1).build();
+    String ip1 = k8s.addPod();
+    String ip2 = k8s.addPod();
+    String ip3 = k8s.addPod();
+    log.info(">>>>>> Electing leader from amongst three candidates");
+    k8s.startPods(ip1, ip2, ip3);
+    Set<InstanceController> controllers =
+        Set.of(k8s.getController(ip1), k8s.getController(ip2), k8s.getController(ip3));
+    final Set<InstanceInfo> instances = new HashSet<>();
+    await()
+        .atMost(3000, TimeUnit.MILLISECONDS)
+        .until(
+            () ->
+                controllers.stream()
+                    .allMatch(
+                        controller -> {
+                          InstanceInfo instance =
+                              (InstanceInfo) ReflectionTestUtils.getField(controller, "selfInfo");
+                          instances.add(instance);
+                          return instance.inEitherState(STATE_ACTIVE, STATE_SPARE);
+                        }));
+    assertEquals(3, instances.size());
+    List<InstanceInfo> leaders =
+        instances.stream().filter(InstanceInfo::isLeader).collect(Collectors.toList());
+    List<InstanceInfo> minions =
+        instances.stream().filter(InstanceInfo::isMinion).collect(Collectors.toList());
+    assertEquals(1, leaders.size());
+    assertEquals(2, minions.size());
+    log.info(">>>>>> Removing leader and triggering re-election");
+    k8s.deletePod(leaders.get(0).getIp());
+    instances.clear();
+    instances.addAll(minions);
+    await()
+        .atMost(3000, TimeUnit.MILLISECONDS)
+        .until(() -> instances.stream().anyMatch(InstanceInfo::isLeader));
+    leaders = instances.stream().filter(InstanceInfo::isLeader).collect(Collectors.toList());
+    minions = instances.stream().filter(InstanceInfo::isMinion).collect(Collectors.toList());
+    assertEquals(1, leaders.size());
+    assertEquals(1, minions.size());
+    log.info(">>>>>> Leader resigns triggering re-election");
+    ReflectionTestUtils.setField(leaders.get(0), "weight", minions.get(0).getWeight() - 1);
+    k8s.getController(leaders.get(0).getIp()).resign();
+    await()
+        .atMost(3000, TimeUnit.MILLISECONDS)
+        .until(() -> instances.stream().anyMatch(InstanceInfo::isLeader));
+    leaders = instances.stream().filter(InstanceInfo::isLeader).collect(Collectors.toList());
+    minions = instances.stream().filter(InstanceInfo::isMinion).collect(Collectors.toList());
+    assertEquals(1, leaders.size());
+    assertEquals(1, minions.size());
   }
 
   @Test
@@ -111,7 +166,8 @@ public class InstanceControllerTest {
     String ip3 = k8s.addPod();
     k8s.startPods(ip3);
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
-    verify(k8s.getEventPublishers().get(ip3), timeout(3000).times(1)).publishEvent(eventCaptor.capture());
+    verify(k8s.getEventPublishers().get(ip3), timeout(3000).times(1))
+        .publishEvent(eventCaptor.capture());
     assertTrue(eventCaptor.getValue() instanceof InstanceReadyEvent);
     assertTrue(getInfo(k8s.getController(ip3)).inState(STATE_SPARE));
   }
@@ -132,7 +188,7 @@ public class InstanceControllerTest {
     k8s.deletePod(ip2);
     await()
         .atMost(config.getHeartbeatTimeoutMillis() * 2L, TimeUnit.MILLISECONDS)
-        .until(() -> getInfo(k8s.getController(ip3)).inState(STATE_ACTIVE));
+        .until(() -> getInfo(k8s.getController(ip3)).isActive());
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
     verify(k8s.getEventPublishers().get(ip3), timeout(3000).times(3))
         .publishEvent(eventCaptor.capture());
@@ -142,7 +198,7 @@ public class InstanceControllerTest {
     assertTrue(events.get(2) instanceof InstanceReadyEvent);
     assertEquals(ip2, ((InstanceRemovedEvent) events.get(1)).getInstanceInfo().getIp());
     InstanceInfo activatedInstance = ((InstanceReadyEvent) events.get(2)).getSelfInfo();
-    assertTrue(activatedInstance.inState(STATE_ACTIVE));
+    assertTrue(activatedInstance.isActive());
     assertEquals(ip3, activatedInstance.getIp());
     assertEquals(orderToClaim, activatedInstance.getOrder());
   }
@@ -171,8 +227,7 @@ public class InstanceControllerTest {
     k8s.unmutePod(ip1);
     await()
         .atMost(config.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
-        .until(
-            () -> controller3.getPeers().get(getInfo(controller1).getId()).inState(STATE_ACTIVE));
+        .until(() -> controller3.getPeers().get(getInfo(controller1).getId()).isActive());
     assertTrue(getInfo(controller3).inState(STATE_SPARE));
   }
 
@@ -344,7 +399,7 @@ public class InstanceControllerTest {
                       .allMatch(
                           controller -> {
                             InstanceInfo selfInfo = getInfo(controller);
-                            return selfInfo.inState(STATE_ACTIVE) || selfInfo.inState(STATE_SPARE);
+                            return selfInfo.isActive() || selfInfo.isSpare();
                           }));
     }
 

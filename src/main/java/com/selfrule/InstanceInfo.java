@@ -1,5 +1,6 @@
 package com.selfrule;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Builder;
 import lombok.Data;
 
@@ -9,7 +10,7 @@ import java.io.Serializable;
 import java.time.Instant;
 import java.util.Arrays;
 
-import static com.selfrule.InstanceConstant.STATE_ACTIVE;
+import static com.selfrule.InstanceConstant.*;
 
 /** Holds service instance information */
 @Data
@@ -24,12 +25,34 @@ public class InstanceInfo implements Serializable {
   private final long weight;
   private transient Instant last;
 
+  @JsonIgnore
   public boolean isActive() {
     return inState(STATE_ACTIVE);
   }
 
+  @JsonIgnore
   public boolean isNotActive() {
     return !inState(STATE_ACTIVE);
+  }
+
+  @JsonIgnore
+  public boolean isAssigned() {
+    return order > ORDER_UNASSIGNED;
+  }
+
+  @JsonIgnore
+  public boolean isSpare() {
+    return inState(STATE_SPARE);
+  }
+
+  @JsonIgnore
+  public boolean isLeader() {
+    return order == ORDER_HIGHEST;
+  }
+
+  @JsonIgnore
+  public boolean isMinion() {
+    return inState(STATE_SPARE);
   }
 
   public boolean inState(@NotNull String checkedState) {

@@ -46,11 +46,10 @@ public class InstanceConfig {
   private int heartbeatIntervalMillis = 1000;
 
   @Min(100)
-  private int heartbeatTimeoutMillis = 5000;
+  private int heartbeatTimeoutMillis = 2000;
 
-  private int poolSize = 0;
+  private int poolSize = 1;
 
-  private SelfRuleMode selfRuleMode = SelfRuleMode.ORDERED_INSTANCES;
 
   /**
    * Create this configuration
