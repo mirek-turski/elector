@@ -414,7 +414,7 @@ public class InstanceController
               discoveredPeers.put(info.getId(), info);
             });
     if (!discoveredPeers.isEmpty()) {
-      log.info(
+      log.debug(
           "Discovered peers: {}",
           Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
     }

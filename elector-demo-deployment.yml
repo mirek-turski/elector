@@ -7,7 +7,7 @@ spec:
     app: elector-demo
   ports:
     - protocol: TCP
-      port: 8080
+      port: 8881
       nodePort: 32101
   type: LoadBalancer
 ---
