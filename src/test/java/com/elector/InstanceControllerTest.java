@@ -57,14 +57,14 @@ public class InstanceControllerTest {
   @Test
   public void testLeaderElection() {
     log.info("==================== Running testLeaderElection");
-    DummyKubernetes k8s = DummyKubernetes.builder().poolSize(1).build();
-    String ip1 = k8s.addPod();
-    String ip2 = k8s.addPod();
-    String ip3 = k8s.addPod();
+    TestEnvironment env = TestEnvironment.builder().poolSize(1).build();
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    String ip3 = env.addPod();
     log.info(">>>>>> Electing leader from amongst three candidates");
-    k8s.startPods(ip1, ip2, ip3);
+    env.startPods(ip1, ip2, ip3);
     Set<InstanceController> controllers =
-        Set.of(k8s.getController(ip1), k8s.getController(ip2), k8s.getController(ip3));
+        Set.of(env.getController(ip1), env.getController(ip2), env.getController(ip3));
     final Set<InstanceInfo> instances = new HashSet<>();
     await()
         .atMost(3000, TimeUnit.MILLISECONDS)
@@ -86,7 +86,7 @@ public class InstanceControllerTest {
     assertEquals(1, leaders.size());
     assertEquals(2, minions.size());
     log.info(">>>>>> Removing leader and triggering re-election");
-    k8s.deletePod(leaders.get(0).getIp());
+    env.deletePod(leaders.get(0).getIp());
     instances.clear();
     instances.addAll(minions);
     await()
@@ -98,7 +98,7 @@ public class InstanceControllerTest {
     assertEquals(1, minions.size());
     log.info(">>>>>> Leader resigns triggering re-election");
     ReflectionTestUtils.setField(leaders.get(0), "weight", minions.get(0).getWeight() - 1);
-    k8s.getController(leaders.get(0).getIp()).resign();
+    env.getController(leaders.get(0).getIp()).resign();
     await()
         .atMost(3000, TimeUnit.MILLISECONDS)
         .until(() -> instances.stream().anyMatch(InstanceInfo::isLeader));
@@ -111,12 +111,12 @@ public class InstanceControllerTest {
   @Test
   public void testHighestOrderWithNoPeers() {
     log.info("==================== Running testHighestOrderWithNoPeers");
-    DummyKubernetes k8s = DummyKubernetes.builder().build();
-    String ip = k8s.addPod();
-    k8s.startPods(ip);
+    TestEnvironment env = TestEnvironment.builder().build();
+    String ip = env.addPod();
+    env.startPods(ip);
     ArgumentCaptor<InstanceReadyEvent> argumentCaptor =
         ArgumentCaptor.forClass(InstanceReadyEvent.class);
-    verify(k8s.getEventPublishers().get(ip), timeout(3000).times(1))
+    verify(env.getEventPublishers().get(ip), timeout(3000).times(1))
         .publishEvent(argumentCaptor.capture());
     InstanceInfo selfInfo = argumentCaptor.getValue().getSelfInfo();
     assertEquals(STATE_ACTIVE, selfInfo.getState());
@@ -126,15 +126,15 @@ public class InstanceControllerTest {
   @Test
   public void testStartTwoInstancesSimultaneously() {
     log.info("==================== Running testStartTwoInstancesSimultaneously");
-    DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
-    String ip1 = k8s.addPod();
-    String ip2 = k8s.addPod();
-    k8s.startPods(ip1, ip2);
+    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    env.startPods(ip1, ip2);
 
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
-    verify(k8s.getEventPublishers().get(ip1), timeout(3000).times(1))
+    verify(env.getEventPublishers().get(ip1), timeout(3000).times(1))
         .publishEvent(eventCaptor.capture());
-    verify(k8s.getEventPublishers().get(ip2), timeout(3000).times(1))
+    verify(env.getEventPublishers().get(ip2), timeout(3000).times(1))
         .publishEvent(eventCaptor.capture());
     List<ApplicationEvent> events = eventCaptor.getAllValues();
 
@@ -159,38 +159,38 @@ public class InstanceControllerTest {
   @Test
   public void testSpareInstanceOnPoolExhausted() {
     log.info("==================== Running testSpareInstanceOnPoolExhausted");
-    DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
-    String ip1 = k8s.addPod();
-    String ip2 = k8s.addPod();
-    k8s.startPods(ip1, ip2);
-    String ip3 = k8s.addPod();
-    k8s.startPods(ip3);
+    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    env.startPods(ip1, ip2);
+    String ip3 = env.addPod();
+    env.startPods(ip3);
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
-    verify(k8s.getEventPublishers().get(ip3), timeout(3000).times(1))
+    verify(env.getEventPublishers().get(ip3), timeout(3000).times(1))
         .publishEvent(eventCaptor.capture());
     assertTrue(eventCaptor.getValue() instanceof InstanceReadyEvent);
-    assertTrue(getInfo(k8s.getController(ip3)).inState(STATE_SPARE));
+    assertTrue(getInfo(env.getController(ip3)).inState(STATE_SPARE));
   }
 
   @Test
   public void testDeletedInstanceReplacedWithSpare() {
     log.info("==================== Running testDeletedInstanceReplacedWithSpare");
-    DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
+    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
     log.info(">>>>>> Starting up two instances simultaneously");
-    String ip1 = k8s.addPod();
-    String ip2 = k8s.addPod();
-    k8s.startPods(ip1, ip2);
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    env.startPods(ip1, ip2);
     log.info(">>>>>> Starting spare instance");
-    String ip3 = k8s.addPod();
-    k8s.startPods(ip3);
-    int orderToClaim = getInfo(k8s.getController(ip2)).getOrder();
+    String ip3 = env.addPod();
+    env.startPods(ip3);
+    int orderToClaim = getInfo(env.getController(ip2)).getOrder();
     log.info(">>>>>> Removing second/active instance");
-    k8s.deletePod(ip2);
+    env.deletePod(ip2);
     await()
         .atMost(config.getHeartbeatTimeoutMillis() * 2L, TimeUnit.MILLISECONDS)
-        .until(() -> getInfo(k8s.getController(ip3)).isActive());
+        .until(() -> getInfo(env.getController(ip3)).isActive());
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
-    verify(k8s.getEventPublishers().get(ip3), timeout(3000).times(3))
+    verify(env.getEventPublishers().get(ip3), timeout(3000).times(3))
         .publishEvent(eventCaptor.capture());
     List<ApplicationEvent> events = eventCaptor.getAllValues();
     assertTrue(events.get(0) instanceof InstanceReadyEvent);
@@ -206,25 +206,25 @@ public class InstanceControllerTest {
   @Test
   public void testAbsentInstance() {
     log.info("==================== Running testAbsentInstance");
-    DummyKubernetes k8s = DummyKubernetes.builder().poolSize(2).build();
+    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
     log.info(">>>>>> Starting up two instances simultaneously");
-    String ip1 = k8s.addPod();
-    String ip2 = k8s.addPod();
-    k8s.startPods(ip1, ip2);
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    env.startPods(ip1, ip2);
     log.info(">>>>>> Starting spare instance");
-    String ip3 = k8s.addPod();
-    k8s.startPods(ip3);
-    InstanceController controller1 = k8s.getController(ip1);
-    InstanceController controller3 = k8s.getController(ip3);
+    String ip3 = env.addPod();
+    env.startPods(ip3);
+    InstanceController controller1 = env.getController(ip1);
+    InstanceController controller3 = env.getController(ip3);
     log.info(">>>>>> Muting instance #1");
-    k8s.mutePod(ip1);
+    env.mutePod(ip1);
     await()
         .atMost(config.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
         .until(
             () -> controller3.getPeers().get(getInfo(controller1).getId()).inState(STATE_ABSENT));
     assertTrue(getInfo(controller3).inState(STATE_SPARE));
     log.info(">>>>>> Unmuting instance #1");
-    k8s.unmutePod(ip1);
+    env.unmutePod(ip1);
     await()
         .atMost(config.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
         .until(() -> controller3.getPeers().get(getInfo(controller1).getId()).isActive());
@@ -326,7 +326,7 @@ public class InstanceControllerTest {
   }
 
   @Getter
-  private static class DummyKubernetes {
+  private static class TestEnvironment {
 
     private final EventDispatcher eventDispatcher = new EventDispatcher();
     private final DiscoveryClientStub discoveryClient = new DiscoveryClientStub();
@@ -336,13 +336,13 @@ public class InstanceControllerTest {
     private final InstanceConfig config;
     private int newIp;
 
-    DummyKubernetes(int newIp, InstanceConfig config) {
+    TestEnvironment(int newIp, InstanceConfig config) {
       this.newIp = newIp;
       this.config = config;
     }
 
-    public static DummyKubernetesBuilder builder() {
-      return new DummyKubernetesBuilder();
+    public static TestEnvironmentBuilder builder() {
+      return new TestEnvironmentBuilder();
     }
 
     public InstanceController getController(String ip) {
@@ -419,40 +419,40 @@ public class InstanceControllerTest {
       serviceInstances.remove(ip);
     }
 
-    public static class DummyKubernetesBuilder {
+    public static class TestEnvironmentBuilder {
       private int newIp = 1;
       private int heartbeatIntervalMillis = 200;
       private int heartbeatTimeoutMillis = 500;
       private int poolSize = 1;
 
-      DummyKubernetesBuilder() {}
+      TestEnvironmentBuilder() {}
 
-      public DummyKubernetesBuilder newIp(int newIp) {
+      public TestEnvironmentBuilder newIp(int newIp) {
         this.newIp = newIp;
         return this;
       }
 
-      public DummyKubernetesBuilder heartbeatIntervalMillis(int heartbeatIntervalMillis) {
+      public TestEnvironmentBuilder heartbeatIntervalMillis(int heartbeatIntervalMillis) {
         this.heartbeatIntervalMillis = heartbeatIntervalMillis;
         return this;
       }
 
-      public DummyKubernetesBuilder heartbeatTimeoutMillis(int heartbeatTimeoutMillis) {
+      public TestEnvironmentBuilder heartbeatTimeoutMillis(int heartbeatTimeoutMillis) {
         this.heartbeatTimeoutMillis = heartbeatTimeoutMillis;
         return this;
       }
 
-      public DummyKubernetesBuilder poolSize(int poolSize) {
+      public TestEnvironmentBuilder poolSize(int poolSize) {
         this.poolSize = poolSize;
         return this;
       }
 
-      public DummyKubernetes build() {
+      public TestEnvironment build() {
         InstanceConfig config = new InstanceConfig("shr-ofx-fix-adapter");
         config.setPoolSize(poolSize);
         config.setHeartbeatIntervalMillis(heartbeatIntervalMillis);
         config.setHeartbeatTimeoutMillis(heartbeatTimeoutMillis);
-        return new DummyKubernetes(newIp, config);
+        return new TestEnvironment(newIp, config);
       }
     }
   }

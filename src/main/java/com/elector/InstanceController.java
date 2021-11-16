@@ -305,8 +305,7 @@ public class InstanceController
   /** Check if we got all votes and we have consensus */
   private void checkBallots() {
 
-    if (ballots.isEmpty()
-        || peers.values().stream().anyMatch(peer -> peer.inState(STATE_DISCOVERED))) {
+    if (voteInitiationTime == null) {
       return;
     }
 
@@ -314,6 +313,11 @@ public class InstanceController
         > config.getHeartbeatTimeoutMillis()) {
       log.debug("Stale ballot, voting again...");
       vote();
+      return;
+    }
+
+    if (ballots.isEmpty()
+            || peers.values().stream().anyMatch(peer -> peer.inState(STATE_DISCOVERED))) {
       return;
     }
 
