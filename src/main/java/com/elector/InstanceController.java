@@ -1,11 +1,10 @@
 package com.elector;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.mapstruct.factory.Mappers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.info.Info;
 import org.springframework.boot.actuate.info.InfoContributor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,31 +31,48 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static com.elector.InstanceConstant.*;
+import static com.elector.Constant.*;
 
 /**
  * Manages instances of the service. The instances will be ordered starting from 0. Every new
  * instance will negotiate the highest available order number.
  */
-@Slf4j
-@EnableScheduling
-@RequiredArgsConstructor
 @Controller
+@EnableScheduling
+@ConditionalOnProperty(value = "elector.enabled", matchIfMissing = true)
 public class InstanceController
     implements GenericHandler<InstanceEvent>, InfoContributor, SchedulingConfigurer {
 
-  private final InstanceConfig config;
+  private static final Logger log = LoggerFactory.getLogger(InstanceController.class);
+
+  private final ElectorProperties properties;
   private final InstanceInfo selfInfo;
   private final DiscoveryClient discoveryClient;
   private final IntegrationFlow outUdpAdapter;
   private final ApplicationEventPublisher eventPublisher;
-  private final InstanceMapper mapper = Mappers.getMapper(InstanceMapper.class);
   // Key = voter id
   private final Map<String, InstanceEvent> ballots = new ConcurrentHashMap<>();
   // Key = pod id
-  @Getter private final Map<String, InstanceInfo> peers = new ConcurrentHashMap<>();
+  private final Map<String, InstanceInfo> peers = new ConcurrentHashMap<>();
   private volatile Instant voteInitiationTime;
   private final CountDownLatch initializerLatch = new CountDownLatch(1);
+
+  public InstanceController(
+      ElectorProperties properties,
+      InstanceInfo selfInfo,
+      DiscoveryClient discoveryClient,
+      IntegrationFlow outUdpAdapter,
+      ApplicationEventPublisher eventPublisher) {
+    this.properties = properties;
+    this.selfInfo = selfInfo;
+    this.discoveryClient = discoveryClient;
+    this.outUdpAdapter = outUdpAdapter;
+    this.eventPublisher = eventPublisher;
+  }
+
+  public Map<String, InstanceInfo> getPeers() {
+    return this.peers;
+  }
 
   /** Initiates peer management after application context gets refreshed */
   @EventListener(ContextRefreshedEvent.class)
@@ -88,7 +104,16 @@ public class InstanceController
     log.trace("Received {}", event);
 
     // Take the note of the sender whatever the event type
-    final InstanceInfo sender = mapper.eventToInfo(event);
+    final InstanceInfo sender =
+        InstanceInfo.builder()
+            .id(event.getId())
+            .name(event.getName())
+            .ip(event.getIp())
+            .namespace(event.getNamespace())
+            .state(event.getState())
+            .order(event.getOrder())
+            .weight(event.getWeight())
+            .build();
     sender.setLast(Instant.now());
     peers.put(event.getId(), sender);
 
@@ -149,7 +174,7 @@ public class InstanceController
               lastCompletionTime
                   .orElseGet(Date::new)
                   .toInstant()
-                  .plusMillis(config.getHeartbeatIntervalMillis());
+                  .plusMillis(properties.getHeartbeatIntervalMillis());
           return Date.from(nextExecutionTime);
         });
   }
@@ -222,8 +247,8 @@ public class InstanceController
   }
 
   /**
-   * Marks this instance as unassigned and spare one and initiates election.
-   * Result of the election is unknown.
+   * Marks this instance as unassigned and spare one and initiates election. Result of the election
+   * is unknown.
    */
   public void resign() {
     selfInfo.setState(STATE_SPARE);
@@ -247,7 +272,7 @@ public class InstanceController
             .filter(
                 peer ->
                     Duration.between(peer.getLast(), Instant.now()).toMillis()
-                        > config.getHeartbeatTimeoutMillis())
+                        > properties.getHeartbeatTimeoutMillis())
             .collect(Collectors.toList());
     if (!absentPeers.isEmpty()) {
       // Firstly, confirm that the absent peer disappeared from Kubernetes
@@ -310,14 +335,14 @@ public class InstanceController
     }
 
     if (Duration.between(voteInitiationTime, Instant.now()).toMillis()
-        > config.getHeartbeatTimeoutMillis()) {
+        > properties.getHeartbeatTimeoutMillis()) {
       log.debug("Stale ballot, voting again...");
       vote();
       return;
     }
 
     if (ballots.isEmpty()
-            || peers.values().stream().anyMatch(peer -> peer.inState(STATE_DISCOVERED))) {
+        || peers.values().stream().anyMatch(peer -> peer.inState(STATE_DISCOVERED))) {
       return;
     }
 
@@ -360,7 +385,16 @@ public class InstanceController
   }
 
   private InstanceEvent prepareHeartbeatEvent() {
-    return mapper.infoToEvent(selfInfo).toBuilder().event(EVENT_HELLO).build();
+    return InstanceEvent.builder()
+        .event(EVENT_HELLO)
+        .id(selfInfo.getId())
+        .name(selfInfo.getName())
+        .ip(selfInfo.getIp())
+        .namespace(selfInfo.getNamespace())
+        .state(selfInfo.getState())
+        .order(selfInfo.getOrder())
+        .weight(selfInfo.getWeight())
+        .build();
   }
 
   private void notifyPeers(final InstanceEvent event, Collection<InstanceInfo> peers) {
@@ -377,7 +411,7 @@ public class InstanceController
                               .setHeader(
                                   HEADER_TARGET,
                                   String.format(
-                                      "udp://%s:%d", peer.getIp(), config.getListenerPort()))
+                                      "udp://%s:%d", peer.getIp(), properties.getListenerPort()))
                               .build());
             } catch (Exception e) {
               log.error("Failed to send event", e);
@@ -399,7 +433,8 @@ public class InstanceController
 
   private Map<String, InstanceInfo> discoverPeers() {
     final Map<String, InstanceInfo> discoveredPeers = new HashMap<>();
-    final List<ServiceInstance> instances = discoveryClient.getInstances(config.getServiceName());
+    final List<ServiceInstance> instances =
+        discoveryClient.getInstances(properties.getServiceName());
     instances.stream()
         .filter(serviceInstance -> !serviceInstance.getInstanceId().equals(selfInfo.getId()))
         .forEach(
@@ -446,7 +481,7 @@ public class InstanceController
             .map(InstanceInfo::getOrder)
             .collect(Collectors.toList());
     final List<Integer> availableOrderNumbers =
-        IntStream.range(1, config.getPoolSize() + 1).boxed().collect(Collectors.toList());
+        IntStream.range(1, properties.getPoolSize() + 1).boxed().collect(Collectors.toList());
     availableOrderNumbers.removeAll(takenOrderNumbers);
     if (availableOrderNumbers.isEmpty()) {
       return ORDER_UNASSIGNED;

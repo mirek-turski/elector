@@ -1,15 +1,11 @@
 package com.elector;
 
-import lombok.Getter;
-import lombok.ToString;
 import org.springframework.context.ApplicationEvent;
 
 import javax.validation.constraints.NotNull;
 import java.util.Map;
 
 /** Event sent on arrival of custom message from another peer. */
-@Getter
-@ToString
 public class InstanceMessageEvent extends ApplicationEvent {
 
   private final InstanceInfo sender;
@@ -33,5 +29,27 @@ public class InstanceMessageEvent extends ApplicationEvent {
     this.sender = sender;
     this.messageId = messageId;
     this.properties = properties;
+  }
+
+  public InstanceInfo getSender() {
+    return this.sender;
+  }
+
+  public String getMessageId() {
+    return this.messageId;
+  }
+
+  public Map<String, String> getProperties() {
+    return this.properties;
+  }
+
+  public String toString() {
+    return "InstanceMessageEvent(sender="
+        + this.getSender()
+        + ", messageId="
+        + this.getMessageId()
+        + ", properties="
+        + this.getProperties()
+        + ")";
   }
 }

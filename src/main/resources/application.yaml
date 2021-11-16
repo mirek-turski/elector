@@ -1,4 +1,4 @@
-instance:
+elector:
   service-name: ${spring.application.name}
   listener-port: 12321
   heartbeat-interval-millis: 1000

@@ -1,6 +1,6 @@
 package com.elector;
 
-public final class InstanceConstant {
+public final class Constant {
   public static final int ORDER_UNASSIGNED = 0;
   public static final int ORDER_HIGHEST = 1;
   public static final String EVENT_HELLO = "hello";

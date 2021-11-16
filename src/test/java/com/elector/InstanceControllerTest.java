@@ -2,10 +2,9 @@ package com.elector;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
@@ -26,14 +25,15 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.elector.InstanceConstant.*;
+import static com.elector.Constant.*;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
-@Slf4j
 public class InstanceControllerTest {
+
+  private static final Logger log = LoggerFactory.getLogger(InstanceControllerTest.class);
 
   static {
     LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -41,8 +41,8 @@ public class InstanceControllerTest {
     loggerContext.getLogger("com.elector").setLevel(Level.DEBUG);
   }
 
-  private final InstanceConfig config = new InstanceConfig("elector-test");
-  final InstanceController controller = new InstanceController(config, null, null, null, null);
+  private final ElectorProperties properties = new ElectorProperties();
+  final InstanceController controller = new InstanceController(properties, null, null, null, null);
 
   InstanceInfo self =
       InstanceInfo.builder().weight(1233L).order(ORDER_UNASSIGNED).state(STATE_INTRODUCED).build();
@@ -187,7 +187,7 @@ public class InstanceControllerTest {
     log.info(">>>>>> Removing second/active instance");
     env.deletePod(ip2);
     await()
-        .atMost(config.getHeartbeatTimeoutMillis() * 2L, TimeUnit.MILLISECONDS)
+        .atMost(properties.getHeartbeatTimeoutMillis() * 2L, TimeUnit.MILLISECONDS)
         .until(() -> getInfo(env.getController(ip3)).isActive());
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
     verify(env.getEventPublishers().get(ip3), timeout(3000).times(3))
@@ -219,14 +219,14 @@ public class InstanceControllerTest {
     log.info(">>>>>> Muting instance #1");
     env.mutePod(ip1);
     await()
-        .atMost(config.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
+        .atMost(properties.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
         .until(
             () -> controller3.getPeers().get(getInfo(controller1).getId()).inState(STATE_ABSENT));
     assertTrue(getInfo(controller3).inState(STATE_SPARE));
     log.info(">>>>>> Unmuting instance #1");
     env.unmutePod(ip1);
     await()
-        .atMost(config.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
+        .atMost(properties.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
         .until(() -> controller3.getPeers().get(getInfo(controller1).getId()).isActive());
     assertTrue(getInfo(controller3).inState(STATE_SPARE));
   }
@@ -245,20 +245,20 @@ public class InstanceControllerTest {
 
   @Test
   public void testResolveOrderSelfNoPeers() {
-    config.setPoolSize(1);
+    properties.setPoolSize(1);
     assertOrder(1, self, self, null, null);
   }
 
   @Test
   public void testResolveOrderSelfReadyPeerIntroduced() {
-    config.setPoolSize(2);
+    properties.setPoolSize(2);
     assertOrder(2, self.toBuilder().order(1).state(STATE_ACTIVE).build(), intro, null, null);
     assertOrder(1, self.toBuilder().order(2).state(STATE_ACTIVE).build(), intro, null, null);
   }
 
   @Test
   public void testResolveOrderSelfDiscoveredPeer() {
-    config.setPoolSize(2);
+    properties.setPoolSize(2);
     final InstanceInfo discoveredInstance =
         InstanceInfo.builder().weight(0).order(0).state(STATE_DISCOVERED).build();
     assertOrder(1, self, self, List.of(discoveredInstance), null);
@@ -266,7 +266,7 @@ public class InstanceControllerTest {
 
   @Test
   public void testResolveOrderSelfPeersReady() {
-    config.setPoolSize(4);
+    properties.setPoolSize(4);
     assertOrder(3, self, self, null, null, 1, 2, 4);
     assertOrder(2, self, self, null, null, 1, 3, 4);
     assertOrder(1, self, self, null, null, 2, 3, 4);
@@ -276,7 +276,7 @@ public class InstanceControllerTest {
 
   @Test
   public void testResolveOrderWeighted() {
-    config.setPoolSize(4);
+    properties.setPoolSize(4);
 
     assertOrder(0, self, self, null, List.of(intro.toBuilder().weight(1234L).build()), 1, 2, 4);
     assertOrder(3, self, self, null, List.of(intro.toBuilder().weight(1232L).build()), 1, 2, 4);
@@ -301,14 +301,14 @@ public class InstanceControllerTest {
       List<InstanceInfo> introduced,
       int... readyOrderValues) {
     Map<String, InstanceInfo> peers = new HashMap<>();
-    for (int i = 0; i < readyOrderValues.length; i++) {
+    for (int readyOrderValue : readyOrderValues) {
       peers.put(
-          UUID.randomUUID().toString(),
-          InstanceInfo.builder()
-              .weight((long) (Math.random() * 1000))
-              .order(readyOrderValues[i])
-              .state(STATE_ACTIVE)
-              .build());
+              UUID.randomUUID().toString(),
+              InstanceInfo.builder()
+                      .weight((long) (Math.random() * 1000))
+                      .order(readyOrderValue)
+                      .state(STATE_ACTIVE)
+                      .build());
     }
     if (!self.equals(candidate)) {
       peers.put(UUID.randomUUID().toString(), candidate);
@@ -325,7 +325,6 @@ public class InstanceControllerTest {
     assertEquals(expected, result);
   }
 
-  @Getter
   private static class TestEnvironment {
 
     private final EventDispatcher eventDispatcher = new EventDispatcher();
@@ -333,12 +332,12 @@ public class InstanceControllerTest {
     private final Map<String, ServiceInstanceStub> serviceInstances = new HashMap<>();
     private final Map<String, ApplicationEventPublisher> eventPublishers = new HashMap<>();
     private final Map<String, ScheduledTaskRegistrar> taskRegistrars = new HashMap<>();
-    private final InstanceConfig config;
+    private final ElectorProperties properties;
     private int newIp;
 
-    TestEnvironment(int newIp, InstanceConfig config) {
+    TestEnvironment(int newIp, ElectorProperties properties) {
       this.newIp = newIp;
-      this.config = config;
+      this.properties = properties;
     }
 
     public static TestEnvironmentBuilder builder() {
@@ -370,7 +369,7 @@ public class InstanceControllerTest {
 
       final InstanceController instanceController =
           new InstanceController(
-              config, selfInfo, discoveryClient, eventDispatcher, eventPublisher);
+                  properties, selfInfo, discoveryClient, eventDispatcher, eventPublisher);
       serviceInstances.put(ip, serviceInstance);
       eventPublishers.put(ip, eventPublisher);
       taskRegistrars.put(ip, taskRegistrar);
@@ -392,7 +391,7 @@ public class InstanceControllerTest {
                 controllers.add(controller);
               });
       await()
-          .atMost(config.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
+          .atMost(properties.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
           .until(
               () ->
                   controllers.stream()
@@ -417,6 +416,34 @@ public class InstanceControllerTest {
       eventDispatcher.removePod(ip);
       eventPublishers.remove(ip);
       serviceInstances.remove(ip);
+    }
+
+    public EventDispatcher getEventDispatcher() {
+      return this.eventDispatcher;
+    }
+
+    public DiscoveryClientStub getDiscoveryClient() {
+      return this.discoveryClient;
+    }
+
+    public Map<String, ServiceInstanceStub> getServiceInstances() {
+      return this.serviceInstances;
+    }
+
+    public Map<String, ApplicationEventPublisher> getEventPublishers() {
+      return this.eventPublishers;
+    }
+
+    public Map<String, ScheduledTaskRegistrar> getTaskRegistrars() {
+      return this.taskRegistrars;
+    }
+
+    public ElectorProperties getProperties() {
+      return this.properties;
+    }
+
+    public int getNewIp() {
+      return this.newIp;
     }
 
     public static class TestEnvironmentBuilder {
@@ -448,11 +475,12 @@ public class InstanceControllerTest {
       }
 
       public TestEnvironment build() {
-        InstanceConfig config = new InstanceConfig("shr-ofx-fix-adapter");
-        config.setPoolSize(poolSize);
-        config.setHeartbeatIntervalMillis(heartbeatIntervalMillis);
-        config.setHeartbeatTimeoutMillis(heartbeatTimeoutMillis);
-        return new TestEnvironment(newIp, config);
+        ElectorProperties properties = new ElectorProperties();
+        properties.setServiceName("shr-ofx-fix-adapter");
+        properties.setPoolSize(poolSize);
+        properties.setHeartbeatIntervalMillis(heartbeatIntervalMillis);
+        properties.setHeartbeatTimeoutMillis(heartbeatTimeoutMillis);
+        return new TestEnvironment(newIp, properties);
       }
     }
   }
@@ -543,7 +571,7 @@ public class InstanceControllerTest {
 
     private final SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor();
 
-    @Getter private final Map<String, InstanceController> controllers = new HashMap<>();
+    private final Map<String, InstanceController> controllers = new HashMap<>();
 
     public void addPod(String ip, InstanceController controller) {
       controllers.put(ip, controller);
@@ -582,6 +610,10 @@ public class InstanceControllerTest {
             });
         return true;
       };
+    }
+
+    public Map<String, InstanceController> getControllers() {
+      return this.controllers;
     }
   }
 }

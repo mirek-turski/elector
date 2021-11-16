@@ -1,12 +1,8 @@
 package com.elector;
 
-import lombok.Getter;
-import lombok.ToString;
 import org.springframework.context.ApplicationEvent;
 
 /** Event sent when an instance of the service was removed. */
-@Getter
-@ToString
 public class InstanceRemovedEvent extends ApplicationEvent {
 
   private final InstanceInfo instanceInfo;
@@ -20,5 +16,13 @@ public class InstanceRemovedEvent extends ApplicationEvent {
   public InstanceRemovedEvent(Object source, InstanceInfo info) {
     super(source);
     this.instanceInfo = info;
+  }
+
+  public InstanceInfo getInstanceInfo() {
+    return this.instanceInfo;
+  }
+
+  public String toString() {
+    return "InstanceRemovedEvent(instanceInfo=" + this.getInstanceInfo() + ")";
   }
 }

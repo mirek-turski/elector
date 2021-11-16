@@ -1,10 +1,9 @@
 package com.elector;
 
 import io.fabric8.kubernetes.api.model.Pod;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.kubernetes.PodUtils;
 import org.springframework.context.annotation.Bean;
@@ -16,48 +15,29 @@ import org.springframework.integration.ip.dsl.Udp;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import javax.annotation.Nullable;
-import javax.validation.constraints.Max;
-import javax.validation.constraints.Min;
-import javax.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.UUID;
 
-import static com.elector.InstanceConstant.*;
+import static com.elector.Constant.*;
 
-/**
- * Together with {@link InstanceController} provides self-governing capabilities, like leadership
- * election and responsibility management.
- */
-@EnableDiscoveryClient
 @EnableScheduling
-@Configuration
-@Slf4j
-@Data
-@ConfigurationProperties(prefix = "instance")
-public class InstanceConfig {
-
-  @NotBlank private String serviceName;
-
-  @Min(1)
-  @Max(65535)
-  private int listenerPort = 12321;
-
-  @Min(100)
-  private int heartbeatIntervalMillis = 1000;
-
-  @Min(100)
-  private int heartbeatTimeoutMillis = 2000;
-
-  private int poolSize = 1;
-
+@EnableDiscoveryClient
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(value = "elector.enabled", matchIfMissing = true)
+@EnableConfigurationProperties(ElectorProperties.class)
+public class ElectorAutoConfiguration {
 
   /**
    * Create this configuration
    *
    * @param serviceName Service name in Kubernetes, defaults to application name
    */
-  public InstanceConfig(@Value("${spring.application.name}") String serviceName) {
-    this.serviceName = serviceName;
+  public ElectorAutoConfiguration(
+      @Value("${spring.application.name}") final String serviceName,
+      final ElectorProperties properties) {
+    if (properties.getServiceName() == null) {
+      properties.setServiceName(serviceName);
+    }
   }
 
   @Bean
@@ -103,8 +83,9 @@ public class InstanceConfig {
    * @return The flow
    */
   @Bean
-  public IntegrationFlow inUdpAdapter(final InstanceController controller) {
-    return IntegrationFlows.from(Udp.inboundAdapter(listenerPort))
+  public IntegrationFlow inUdpAdapter(
+      final InstanceController controller, final ElectorProperties properties) {
+    return IntegrationFlows.from(Udp.inboundAdapter(properties.getListenerPort()))
         .transform(Transformers.fromJson(InstanceEvent.class))
         .handle(InstanceEvent.class, controller)
         .get();
