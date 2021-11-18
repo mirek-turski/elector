@@ -1,11 +1,3 @@
-elector:
-  enabled: true
-  service-name: ${spring.application.name}
-  listener-port: 12321
-  heartbeat-interval-millis: 1000
-  heartbeat-timeout-millis: 2000
-  poolSize: 1
-
 server:
   port : 8085
 
@@ -15,6 +7,13 @@ spring:
   cloud:
     config:
       enabled: false
+    elector:
+      enabled: true
+      service-name: ${spring.application.name}
+      listener-port: 12321
+      heartbeat-interval-millis: 1000
+      heartbeat-timeout-millis: 2000
+      poolSize: 1
     kubernetes:
       enabled: false
       discovery:

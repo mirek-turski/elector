@@ -10,7 +10,7 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Positive;
 
 @Validated
-@ConfigurationProperties(prefix = "elector")
+@ConfigurationProperties(prefix = "spring.cloud.elector")
 public class ElectorProperties {
 
   boolean enabled = true;
@@ -22,6 +22,8 @@ public class ElectorProperties {
   @Min(1)
   @Max(65535)
   private int listenerPort = 12321;
+
+  private String hostname = "127.0.0.1";
 
   @Min(100)
   private int heartbeatIntervalMillis = 1000;
@@ -41,6 +43,10 @@ public class ElectorProperties {
 
   public @Min(1) @Max(65535) int getListenerPort() {
     return this.listenerPort;
+  }
+
+  public String getHostname() {
+    return this.hostname;
   }
 
   public @Min(100) int getHeartbeatIntervalMillis() {
@@ -67,6 +73,10 @@ public class ElectorProperties {
     this.listenerPort = listenerPort;
   }
 
+  public void setHostname(String hostname) {
+    this.hostname = hostname;
+  }
+
   public void setHeartbeatIntervalMillis(@Min(100) int heartbeatIntervalMillis) {
     this.heartbeatIntervalMillis = heartbeatIntervalMillis;
   }
@@ -86,6 +96,8 @@ public class ElectorProperties {
         + this.getServiceName()
         + ", listenerPort="
         + this.getListenerPort()
+        + ", hostname="
+        + this.getHostname()
         + ", heartbeatIntervalMillis="
         + this.getHeartbeatIntervalMillis()
         + ", heartbeatTimeoutMillis="

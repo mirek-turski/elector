@@ -58,7 +58,7 @@ public class ElectorAutoConfiguration {
               .id(id)
               .weight((long) (System.currentTimeMillis() * Math.random()))
               .name(properties.getServiceName())
-              .ip("127.0.0.1")
+              .ip(properties.getHostname())
               .namespace(UNKNOWN)
               .order(ORDER_UNASSIGNED)
               .state(STATE_NEW)
