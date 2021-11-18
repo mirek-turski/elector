@@ -1,5 +1,6 @@
 package com.elector;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -14,7 +15,9 @@ public class ElectorProperties {
 
   boolean enabled = true;
 
-  @NotBlank private String serviceName;
+  @NotBlank
+  @Value("${spring.application.name:unknown}")
+  private String serviceName;
 
   @Min(1)
   @Max(65535)
@@ -27,8 +30,6 @@ public class ElectorProperties {
   private int heartbeatTimeoutMillis = 2000;
 
   @Positive private int poolSize = 1;
-
-  public ElectorProperties() {}
 
   public boolean isEnabled() {
     return this.enabled;

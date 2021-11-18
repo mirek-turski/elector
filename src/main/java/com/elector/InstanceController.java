@@ -2,9 +2,6 @@ package com.elector;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.actuate.info.Info;
-import org.springframework.boot.actuate.info.InfoContributor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.ApplicationEventPublisher;
@@ -14,10 +11,8 @@ import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.handler.GenericHandler;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.support.MessageBuilder;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
-import org.springframework.stereotype.Controller;
 
 import javax.annotation.Nullable;
 import javax.validation.constraints.NotNull;
@@ -37,11 +32,8 @@ import static com.elector.Constant.*;
  * Manages instances of the service. The instances will be ordered starting from 0. Every new
  * instance will negotiate the highest available order number.
  */
-@Controller
-@EnableScheduling
-@ConditionalOnProperty(value = "elector.enabled", matchIfMissing = true)
 public class InstanceController
-    implements GenericHandler<InstanceEvent>, InfoContributor, SchedulingConfigurer {
+    implements GenericHandler<InstanceEvent>, SchedulingConfigurer {
 
   private static final Logger log = LoggerFactory.getLogger(InstanceController.class);
 
@@ -177,18 +169,6 @@ public class InstanceController
                   .plusMillis(properties.getHeartbeatIntervalMillis());
           return Date.from(nextExecutionTime);
         });
-  }
-
-  @Override
-  public void contribute(Info.Builder builder) {
-    try {
-      Map<String, Object> details = new HashMap<>();
-      details.put("self", selfInfo);
-      details.put("peers", peers.values());
-      builder.withDetail("instances", details);
-    } catch (Exception e) {
-      log.warn("Failed to produce instance info", e);
-    }
   }
 
   /**

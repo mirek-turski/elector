@@ -1,11 +1,15 @@
 package com.elector;
 
 import io.fabric8.kubernetes.api.model.Pod;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.actuate.info.InfoContributor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.kubernetes.PodUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.dsl.IntegrationFlow;
@@ -27,21 +31,9 @@ import static com.elector.Constant.*;
 @EnableConfigurationProperties(ElectorProperties.class)
 public class ElectorAutoConfiguration {
 
-  /**
-   * Create this configuration
-   *
-   * @param serviceName Service name in Kubernetes, defaults to application name
-   */
-  public ElectorAutoConfiguration(
-      @Value("${spring.application.name}") final String serviceName,
-      final ElectorProperties properties) {
-    if (properties.getServiceName() == null) {
-      properties.setServiceName(serviceName);
-    }
-  }
-
   @Bean
-  public InstanceInfo selfInfo(@Nullable PodUtils podUtils) {
+  @ConditionalOnMissingBean
+  public InstanceInfo selfInfo(@Nullable PodUtils podUtils, ElectorProperties properties) {
     InstanceInfo selfInfo;
     final Pod current = podUtils != null ? podUtils.currentPod().get() : null;
     final String id =
@@ -65,7 +57,7 @@ public class ElectorAutoConfiguration {
           InstanceInfo.builder()
               .id(id)
               .weight((long) (System.currentTimeMillis() * Math.random()))
-              .name("localhost")
+              .name(properties.getServiceName())
               .ip("127.0.0.1")
               .namespace(UNKNOWN)
               .order(ORDER_UNASSIGNED)
@@ -101,5 +93,23 @@ public class ElectorAutoConfiguration {
     return f ->
         f.transform(Transformers.toJson())
             .handle(Udp.outboundAdapter(m -> m.getHeaders().get(HEADER_TARGET)));
+  }
+
+  @Bean
+  public InstanceController instanceController(
+      ElectorProperties properties,
+      InstanceInfo selfInfo,
+      DiscoveryClient discoveryClient,
+      IntegrationFlow outUdpAdapter,
+      ApplicationEventPublisher eventPublisher) {
+    return new InstanceController(
+        properties, selfInfo, discoveryClient, outUdpAdapter, eventPublisher);
+  }
+
+  @Bean
+  @ConditionalOnClass(InfoContributor.class)
+  public InstanceInfoContributor instanceInfoContributor(
+      InstanceInfo selfInfo, InstanceController instanceController) {
+    return new InstanceInfoContributor(selfInfo, instanceController);
   }
 }
