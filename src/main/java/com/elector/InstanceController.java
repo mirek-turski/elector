@@ -33,7 +33,7 @@ import static com.elector.Constant.*;
  * instance will negotiate the highest available order number.
  */
 public class InstanceController
-    implements GenericHandler<InstanceEvent>, SchedulingConfigurer {
+    implements GenericHandler<ElectorEvent>, SchedulingConfigurer {
 
   private static final Logger log = LoggerFactory.getLogger(InstanceController.class);
 
@@ -43,7 +43,7 @@ public class InstanceController
   private final IntegrationFlow outUdpAdapter;
   private final ApplicationEventPublisher eventPublisher;
   // Key = voter id
-  private final Map<String, InstanceEvent> ballots = new ConcurrentHashMap<>();
+  private final Map<String, ElectorEvent> ballots = new ConcurrentHashMap<>();
   // Key = pod id
   private final Map<String, InstanceInfo> peers = new ConcurrentHashMap<>();
   private volatile Instant voteInitiationTime;
@@ -82,7 +82,7 @@ public class InstanceController
   }
 
   @Override
-  public synchronized Object handle(InstanceEvent event, MessageHeaders headers) {
+  public synchronized Object handle(ElectorEvent event, MessageHeaders headers) {
 
     // No event processing takes places until the instance is fully initialized.
     // Note that we may start receiving events from peers before that controller is actually
@@ -216,7 +216,7 @@ public class InstanceController
   }
 
   /**
-   * Get the peers that are active with assigned order number > 0.
+   * Get the peers that are active with assigned order number greater than 0.
    *
    * @return Set of active peers
    */
@@ -236,7 +236,7 @@ public class InstanceController
     vote();
   }
 
-  private InstanceEvent prepareMessageEvent(
+  private ElectorEvent prepareMessageEvent(
       @NotNull final String id, @Nullable final Map<String, String> properties) {
     Map<String, String> props = new HashMap<>();
     props.put(PROPERTY_MESSAGE_ID, id);
@@ -286,7 +286,7 @@ public class InstanceController
     Map<String, String> props = new HashMap<>();
     props.put(PROPERTY_CANDIDATE, selfInfo.getId());
     props.put(PROPERTY_ORDER, Integer.toString(resolveOrder(selfInfo)));
-    final InstanceEvent voteEvent =
+    final ElectorEvent voteEvent =
         prepareHeartbeatEvent().toBuilder().event(EVENT_VOTE).properties(props).build();
     ballots.clear();
     voteInitiationTime = Instant.now();
@@ -364,8 +364,8 @@ public class InstanceController
     }
   }
 
-  private InstanceEvent prepareHeartbeatEvent() {
-    return InstanceEvent.builder()
+  private ElectorEvent prepareHeartbeatEvent() {
+    return ElectorEvent.builder()
         .event(EVENT_HELLO)
         .id(selfInfo.getId())
         .name(selfInfo.getName())
@@ -377,7 +377,7 @@ public class InstanceController
         .build();
   }
 
-  private void notifyPeers(final InstanceEvent event, Collection<InstanceInfo> peers) {
+  private void notifyPeers(final ElectorEvent event, Collection<InstanceInfo> peers) {
     try {
       peers.forEach(
           peer -> {
@@ -480,7 +480,7 @@ public class InstanceController
     return offset > 0 ? ORDER_UNASSIGNED : availableOrderNumbers.get(candidateIndex);
   }
 
-  private String getEventProperty(final InstanceEvent event, final String name) {
+  private String getEventProperty(final ElectorEvent event, final String name) {
     if (event == null
         || event.getProperties() == null
         || !event.getProperties().containsKey(name)) {

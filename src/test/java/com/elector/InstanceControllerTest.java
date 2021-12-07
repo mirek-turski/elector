@@ -587,7 +587,7 @@ public class InstanceControllerTest {
     @Override
     public MessageChannel getInputChannel() {
       return (message, timeout) -> {
-        InstanceEvent event = (InstanceEvent) message.getPayload();
+        ElectorEvent event = (ElectorEvent) message.getPayload();
         StringBuilder ip = new StringBuilder();
         try {
           URI destination = new URI((String) message.getHeaders().get(HEADER_TARGET));

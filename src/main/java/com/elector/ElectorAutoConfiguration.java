@@ -27,8 +27,8 @@ import static com.elector.Constant.*;
 @EnableScheduling
 @EnableDiscoveryClient
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(value = "elector.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(ElectorProperties.class)
+@ConditionalOnProperty(value = "spring.cloud.elector.enabled", matchIfMissing = true)
 public class ElectorAutoConfiguration {
 
   @Bean
@@ -71,15 +71,16 @@ public class ElectorAutoConfiguration {
   /**
    * Creates {@link IntegrationFlow} responsible for inbound UDP communication from other instances
    *
-   * @param controller {@link InstanceController} receiving the communication
+   * @param controller Injected {@link InstanceController} bean that will receive the communication
+   * @param properties Injected {@link ElectorProperties} bean
    * @return The flow
    */
   @Bean
   public IntegrationFlow inUdpAdapter(
       final InstanceController controller, final ElectorProperties properties) {
     return IntegrationFlows.from(Udp.inboundAdapter(properties.getListenerPort()))
-        .transform(Transformers.fromJson(InstanceEvent.class))
-        .handle(InstanceEvent.class, controller)
+        .transform(Transformers.fromJson(ElectorEvent.class))
+        .handle(ElectorEvent.class, controller)
         .get();
   }
 

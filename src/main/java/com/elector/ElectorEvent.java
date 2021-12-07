@@ -11,10 +11,10 @@ import java.io.Serializable;
 import java.util.Map;
 
 /** Contract for communication between instances of this microservice */
-@JsonDeserialize(builder = InstanceEvent.EventBuilder.class)
+@JsonDeserialize(builder = ElectorEvent.EventBuilder.class)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class InstanceEvent implements Serializable {
+public class ElectorEvent implements Serializable {
   @NotBlank private final String event;
   @NotBlank private final String id;
   @NotBlank private final String name;
@@ -25,7 +25,7 @@ public class InstanceEvent implements Serializable {
   private final long weight;
   @Nullable private final Map<String, String> properties;
 
-  InstanceEvent(
+  ElectorEvent(
       @NotBlank String event,
       @NotBlank String id,
       @NotBlank String name,
@@ -182,8 +182,8 @@ public class InstanceEvent implements Serializable {
       return this;
     }
 
-    public InstanceEvent build() {
-      return new InstanceEvent(event, id, name, ip, namespace, state, order, weight, properties);
+    public ElectorEvent build() {
+      return new ElectorEvent(event, id, name, ip, namespace, state, order, weight, properties);
     }
   }
 }
