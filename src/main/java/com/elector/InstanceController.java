@@ -100,8 +100,7 @@ public class InstanceController
         InstanceInfo.builder()
             .id(event.getId())
             .name(event.getName())
-            .ip(event.getIp())
-            .namespace(event.getNamespace())
+            .host(event.getIp())
             .state(event.getState())
             .order(event.getOrder())
             .weight(event.getWeight())
@@ -264,13 +263,13 @@ public class InstanceController
                   "Instance heartbeat timeout occurred for pod {} with IP={}, "
                       + "but it is still reported by Kubernetes",
                   absentPeer.getName(),
-                  absentPeer.getIp());
+                  absentPeer.getHost());
               peers.get(absentPeer.getId()).setState(STATE_ABSENT);
               // What to do if the problem persists? Give it a bit more time and permanently remove?
               // For now, such an instance will be kept in the pool
             } else {
               log.debug(
-                  "Removing absent pod {} with IP={}", absentPeer.getName(), absentPeer.getIp());
+                  "Removing absent pod {} with IP={}", absentPeer.getName(), absentPeer.getHost());
               peers.remove(absentPeer.getId());
               eventPublisher.publishEvent(new InstanceRemovedEvent(this, absentPeer));
               if (absentPeer.isAssigned() && selfInfo.inState(STATE_SPARE)) {
@@ -369,8 +368,7 @@ public class InstanceController
         .event(EVENT_HELLO)
         .id(selfInfo.getId())
         .name(selfInfo.getName())
-        .ip(selfInfo.getIp())
-        .namespace(selfInfo.getNamespace())
+        .ip(selfInfo.getHost())
         .state(selfInfo.getState())
         .order(selfInfo.getOrder())
         .weight(selfInfo.getWeight())
@@ -391,19 +389,19 @@ public class InstanceController
                               .setHeader(
                                   HEADER_TARGET,
                                   String.format(
-                                      "udp://%s:%d", peer.getIp(), properties.getListenerPort()))
+                                      "udp://%s:%d", peer.getHost(), properties.getListenerPort()))
                               .build());
             } catch (Exception e) {
               log.error("Failed to send event", e);
             }
             if (sent) {
-              log.trace("Sent {} to {}", event, peer.getIp());
+              log.trace("Sent {} to {}", event, peer.getHost());
             } else {
               peer.setState(STATE_ABSENT);
               log.debug(
                   "Failed to notify pod {} with IP={}, marking as absent",
                   peer.getName(),
-                  peer.getIp());
+                  peer.getHost());
             }
           });
     } catch (Exception e) {
@@ -423,9 +421,8 @@ public class InstanceController
                   InstanceInfo.builder()
                       .id(serviceInstance.getInstanceId())
                       .weight(0)
-                      .name(UNKNOWN)
-                      .ip(serviceInstance.getHost())
-                      .namespace(UNKNOWN)
+                      .name(properties.getServiceName())
+                      .host(serviceInstance.getHost())
                       .order(ORDER_UNASSIGNED)
                       .state(STATE_DISCOVERED)
                       .last(Instant.now())

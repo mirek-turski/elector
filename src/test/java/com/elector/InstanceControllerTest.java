@@ -86,7 +86,7 @@ public class InstanceControllerTest {
     assertEquals(1, leaders.size());
     assertEquals(2, minions.size());
     log.info(">>>>>> Removing leader and triggering re-election");
-    env.deletePod(leaders.get(0).getIp());
+    env.deletePod(leaders.get(0).getHost());
     instances.clear();
     instances.addAll(minions);
     await()
@@ -98,7 +98,7 @@ public class InstanceControllerTest {
     assertEquals(1, minions.size());
     log.info(">>>>>> Leader resigns triggering re-election");
     ReflectionTestUtils.setField(leaders.get(0), "weight", minions.get(0).getWeight() - 1);
-    env.getController(leaders.get(0).getIp()).resign();
+    env.getController(leaders.get(0).getHost()).resign();
     await()
         .atMost(3000, TimeUnit.MILLISECONDS)
         .until(() -> instances.stream().anyMatch(InstanceInfo::isLeader));
@@ -196,10 +196,10 @@ public class InstanceControllerTest {
     assertTrue(events.get(0) instanceof InstanceReadyEvent);
     assertTrue(events.get(1) instanceof InstanceRemovedEvent);
     assertTrue(events.get(2) instanceof InstanceReadyEvent);
-    assertEquals(ip2, ((InstanceRemovedEvent) events.get(1)).getInstanceInfo().getIp());
+    assertEquals(ip2, ((InstanceRemovedEvent) events.get(1)).getInstanceInfo().getHost());
     InstanceInfo activatedInstance = ((InstanceReadyEvent) events.get(2)).getSelfInfo();
     assertTrue(activatedInstance.isActive());
-    assertEquals(ip3, activatedInstance.getIp());
+    assertEquals(ip3, activatedInstance.getHost());
     assertEquals(orderToClaim, activatedInstance.getOrder());
   }
 
@@ -356,8 +356,7 @@ public class InstanceControllerTest {
               .id(uuid)
               .weight((long) (System.currentTimeMillis() * Math.random()))
               .name("shr-ofx-fix-adapter-" + uuid)
-              .ip(ip)
-              .namespace("test")
+              .host(ip)
               .order(ORDER_UNASSIGNED)
               .state(STATE_NEW)
               .last(Instant.now())

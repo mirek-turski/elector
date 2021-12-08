@@ -14,8 +14,7 @@ import static com.elector.Constant.*;
 public class InstanceInfo implements Serializable {
   private final String id;
   private final String name;
-  private final String ip;
-  private final String namespace;
+  private final String host;
   private String state;
   private int order;
   private final long weight;
@@ -24,16 +23,14 @@ public class InstanceInfo implements Serializable {
   InstanceInfo(
       String id,
       String name,
-      String ip,
-      String namespace,
+      String host,
       String state,
       int order,
       long weight,
       Instant last) {
     this.id = id;
     this.name = name;
-    this.ip = ip;
-    this.namespace = namespace;
+    this.host = host;
     this.state = state;
     this.order = order;
     this.weight = weight;
@@ -94,12 +91,8 @@ public class InstanceInfo implements Serializable {
     return this.name;
   }
 
-  public String getIp() {
-    return this.ip;
-  }
-
-  public String getNamespace() {
-    return this.namespace;
+  public String getHost() {
+    return this.host;
   }
 
   public String getState() {
@@ -135,10 +128,8 @@ public class InstanceInfo implements Serializable {
         + this.getId()
         + ", name="
         + this.getName()
-        + ", ip="
-        + this.getIp()
-        + ", namespace="
-        + this.getNamespace()
+        + ", host="
+        + this.getHost()
         + ", state="
         + this.getState()
         + ", order="
@@ -154,8 +145,7 @@ public class InstanceInfo implements Serializable {
     return new InstanceInfoBuilder()
         .id(this.id)
         .name(this.name)
-        .ip(this.ip)
-        .namespace(this.namespace)
+        .host(this.host)
         .state(this.state)
         .order(this.order)
         .weight(this.weight)
@@ -165,8 +155,7 @@ public class InstanceInfo implements Serializable {
   public static class InstanceInfoBuilder {
     private String id;
     private String name;
-    private String ip;
-    private String namespace;
+    private String host;
     private String state;
     private int order;
     private long weight;
@@ -184,13 +173,8 @@ public class InstanceInfo implements Serializable {
       return this;
     }
 
-    public InstanceInfoBuilder ip(String ip) {
-      this.ip = ip;
-      return this;
-    }
-
-    public InstanceInfoBuilder namespace(String namespace) {
-      this.namespace = namespace;
+    public InstanceInfoBuilder host(String host) {
+      this.host = host;
       return this;
     }
 
@@ -215,7 +199,7 @@ public class InstanceInfo implements Serializable {
     }
 
     public InstanceInfo build() {
-      return new InstanceInfo(id, name, ip, namespace, state, order, weight, last);
+      return new InstanceInfo(id, name, host, state, order, weight, last);
     }
 
   }
