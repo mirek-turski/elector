@@ -4,11 +4,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
-
-import javax.annotation.Nullable;
-import javax.validation.constraints.NotBlank;
 import java.io.Serializable;
 import java.util.Map;
+import javax.annotation.Nullable;
+import javax.validation.constraints.NotBlank;
 
 /** Contract for communication between instances of this microservice */
 @JsonDeserialize(builder = ElectorEvent.EventBuilder.class)
@@ -18,7 +17,7 @@ public class ElectorEvent implements Serializable {
   @NotBlank private final String event;
   @NotBlank private final String id;
   @NotBlank private final String name;
-  @NotBlank private final String ip;
+  @NotBlank private final String host;
   @NotBlank private final String namespace;
   @NotBlank private final String state;
   private final int order;
@@ -29,7 +28,7 @@ public class ElectorEvent implements Serializable {
       @NotBlank String event,
       @NotBlank String id,
       @NotBlank String name,
-      @NotBlank String ip,
+      @NotBlank String host,
       @NotBlank String namespace,
       @NotBlank String state,
       int order,
@@ -38,7 +37,7 @@ public class ElectorEvent implements Serializable {
     this.event = event;
     this.id = id;
     this.name = name;
-    this.ip = ip;
+    this.host = host;
     this.namespace = namespace;
     this.state = state;
     this.order = order;
@@ -62,8 +61,8 @@ public class ElectorEvent implements Serializable {
     return this.name;
   }
 
-  public @NotBlank String getIp() {
-    return this.ip;
+  public @NotBlank String getHost() {
+    return this.host;
   }
 
   public @NotBlank String getNamespace() {
@@ -94,8 +93,8 @@ public class ElectorEvent implements Serializable {
         + this.getId()
         + ", name="
         + this.getName()
-        + ", ip="
-        + this.getIp()
+        + ", host="
+        + this.getHost()
         + ", namespace="
         + this.getNamespace()
         + ", state="
@@ -114,7 +113,7 @@ public class ElectorEvent implements Serializable {
         .event(this.event)
         .id(this.id)
         .name(this.name)
-        .ip(this.ip)
+        .host(this.host)
         .namespace(this.namespace)
         .state(this.state)
         .order(this.order)
@@ -128,7 +127,7 @@ public class ElectorEvent implements Serializable {
     private @NotBlank String event;
     private @NotBlank String id;
     private @NotBlank String name;
-    private @NotBlank String ip;
+    private @NotBlank String host;
     private @NotBlank String namespace;
     private @NotBlank String state;
     private int order;
@@ -152,8 +151,8 @@ public class ElectorEvent implements Serializable {
       return this;
     }
 
-    public EventBuilder ip(@NotBlank String ip) {
-      this.ip = ip;
+    public EventBuilder host(@NotBlank String host) {
+      this.host = host;
       return this;
     }
 
@@ -183,7 +182,7 @@ public class ElectorEvent implements Serializable {
     }
 
     public ElectorEvent build() {
-      return new ElectorEvent(event, id, name, ip, namespace, state, order, weight, properties);
+      return new ElectorEvent(event, id, name, host, namespace, state, order, weight, properties);
     }
   }
 }

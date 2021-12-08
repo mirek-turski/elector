@@ -1,7 +1,38 @@
 package com.elector;
 
+import static com.elector.Constant.HEADER_TARGET;
+import static com.elector.Constant.ORDER_HIGHEST;
+import static com.elector.Constant.ORDER_UNASSIGNED;
+import static com.elector.Constant.STATE_ABSENT;
+import static com.elector.Constant.STATE_ACTIVE;
+import static com.elector.Constant.STATE_DISCOVERED;
+import static com.elector.Constant.STATE_INTRODUCED;
+import static com.elector.Constant.STATE_NEW;
+import static com.elector.Constant.STATE_SPARE;
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import javax.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.Logger;
@@ -16,20 +47,6 @@ import org.springframework.integration.dsl.IntegrationFlowDefinition;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import javax.validation.constraints.NotNull;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import static com.elector.Constant.*;
-import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.*;
 
 public class InstanceControllerTest {
 
@@ -355,7 +372,7 @@ public class InstanceControllerTest {
           InstanceInfo.builder()
               .id(uuid)
               .weight((long) (System.currentTimeMillis() * Math.random()))
-              .name("shr-ofx-fix-adapter-" + uuid)
+              .name("elector-test-" + uuid)
               .host(ip)
               .order(ORDER_UNASSIGNED)
               .state(STATE_NEW)
@@ -390,7 +407,7 @@ public class InstanceControllerTest {
                 controllers.add(controller);
               });
       await()
-          .atMost(properties.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
+          .atMost(properties.getHeartbeatTimeoutMillis() * 2L, TimeUnit.MILLISECONDS)
           .until(
               () ->
                   controllers.stream()
@@ -475,7 +492,7 @@ public class InstanceControllerTest {
 
       public TestEnvironment build() {
         ElectorProperties properties = new ElectorProperties();
-        properties.setServiceName("shr-ofx-fix-adapter");
+        properties.setServiceName("elector-test");
         properties.setPoolSize(poolSize);
         properties.setHeartbeatIntervalMillis(heartbeatIntervalMillis);
         properties.setHeartbeatTimeoutMillis(heartbeatTimeoutMillis);
@@ -516,7 +533,7 @@ public class InstanceControllerTest {
 
     @Override
     public List<String> getServices() {
-      return List.of("kubernetes", "shr-ofx-fix-adapter");
+      return List.of("kubernetes", "elector-test");
     }
   }
 

@@ -1,5 +1,39 @@
 package com.elector;
 
+import static com.elector.Constant.EVENT_HELLO;
+import static com.elector.Constant.EVENT_MESSAGE;
+import static com.elector.Constant.EVENT_VOTE;
+import static com.elector.Constant.HEADER_TARGET;
+import static com.elector.Constant.ORDER_HIGHEST;
+import static com.elector.Constant.ORDER_UNASSIGNED;
+import static com.elector.Constant.PROPERTY_CANDIDATE;
+import static com.elector.Constant.PROPERTY_MESSAGE_ID;
+import static com.elector.Constant.PROPERTY_ORDER;
+import static com.elector.Constant.STATE_ABSENT;
+import static com.elector.Constant.STATE_ACTIVE;
+import static com.elector.Constant.STATE_DISCOVERED;
+import static com.elector.Constant.STATE_INTRODUCED;
+import static com.elector.Constant.STATE_SPARE;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
+import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.ServiceInstance;
@@ -13,20 +47,6 @@ import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
-
-import javax.annotation.Nullable;
-import javax.validation.constraints.NotNull;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
-
-import static com.elector.Constant.*;
 
 /**
  * Manages instances of the service. The instances will be ordered starting from 0. Every new
@@ -100,7 +120,7 @@ public class InstanceController
         InstanceInfo.builder()
             .id(event.getId())
             .name(event.getName())
-            .host(event.getIp())
+            .host(event.getHost())
             .state(event.getState())
             .order(event.getOrder())
             .weight(event.getWeight())
@@ -368,7 +388,7 @@ public class InstanceController
         .event(EVENT_HELLO)
         .id(selfInfo.getId())
         .name(selfInfo.getName())
-        .ip(selfInfo.getHost())
+        .host(selfInfo.getHost())
         .state(selfInfo.getState())
         .order(selfInfo.getOrder())
         .weight(selfInfo.getWeight())
