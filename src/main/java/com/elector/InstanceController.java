@@ -52,8 +52,7 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
  * Manages instances of the service. The instances will be ordered starting from 0. Every new
  * instance will negotiate the highest available order number.
  */
-public class InstanceController
-    implements GenericHandler<ElectorEvent>, SchedulingConfigurer {
+public class InstanceController implements GenericHandler<ElectorEvent>, SchedulingConfigurer {
 
   private static final Logger log = LoggerFactory.getLogger(InstanceController.class);
 

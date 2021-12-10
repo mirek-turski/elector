@@ -15,6 +15,5 @@ public final class Constant {
   public static final String STATE_NEW = "new";
   public static final String STATE_ACTIVE = "active";
   public static final String STATE_SPARE = "spare";
-  public static final String UNKNOWN = "unknown";
   public static final String HEADER_TARGET = "target_address";
 }

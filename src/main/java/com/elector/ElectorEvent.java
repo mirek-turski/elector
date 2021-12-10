@@ -9,7 +9,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import javax.validation.constraints.NotBlank;
 
-/** Contract for communication between instances of this microservice */
+/** Contract for communication between instances */
 @JsonDeserialize(builder = ElectorEvent.EventBuilder.class)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
