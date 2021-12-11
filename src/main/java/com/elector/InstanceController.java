@@ -280,7 +280,7 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
             if (discoveredPeers.containsKey(absentPeer.getId())) {
               log.warn(
                   "Instance heartbeat timeout occurred for pod {} with IP={}, "
-                      + "but it is still reported by Kubernetes",
+                      + "but it is still reported by discovery client",
                   absentPeer.getName(),
                   absentPeer.getHost());
               peers.get(absentPeer.getId()).setState(STATE_ABSENT);

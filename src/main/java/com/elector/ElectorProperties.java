@@ -28,7 +28,7 @@ public class ElectorProperties {
   private int heartbeatIntervalMillis = 1000;
 
   @Min(100)
-  private int heartbeatTimeoutMillis = 2000;
+  private int heartbeatTimeoutMillis = 3000;
 
   @Positive
   private int poolSize = 1;

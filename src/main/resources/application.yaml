@@ -10,6 +10,21 @@ spring:
 #      preferred-networks: 192\.168\.88\..*
     config:
       enabled: false
+    discovery:
+      client:
+        simple:
+          local:
+            instanceId: ${spring.application.name}#0
+            serviceId: ${spring.application.name}
+            host: 192.168.88.230
+          instances:
+            elector-demo:
+              - instanceId: ${spring.application.name}#1
+                host: 192.168.123.1
+              - instanceId: ${spring.application.name}#1
+                host: 192.168.123.2
+              - instanceId: ${spring.application.name}#1
+                host: 192.168.123.3
     elector:
       enabled: true
       service-name: ${spring.application.name}
