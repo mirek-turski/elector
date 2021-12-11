@@ -1,13 +1,12 @@
 package com.elector;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.validation.annotation.Validated;
-
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Positive;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 @Validated
 @ConfigurationProperties(prefix = "spring.cloud.elector")
@@ -23,7 +22,7 @@ public class ElectorProperties {
   @Max(65535)
   private int listenerPort = 12321;
 
-  private String hostname = "127.0.0.1";
+  private String hostname;
 
   @Min(100)
   private int heartbeatIntervalMillis = 1000;
@@ -31,7 +30,8 @@ public class ElectorProperties {
   @Min(100)
   private int heartbeatTimeoutMillis = 2000;
 
-  @Positive private int poolSize = 1;
+  @Positive
+  private int poolSize = 1;
 
   public boolean isEnabled() {
     return this.enabled;

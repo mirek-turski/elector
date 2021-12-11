@@ -5,11 +5,15 @@ spring:
   application:
     name: elector-demo
   cloud:
+#    inetutils:
+#      useOnlySiteLocalInterfaces: true
+#      preferred-networks: 192\.168\.88\..*
     config:
       enabled: false
     elector:
       enabled: true
       service-name: ${spring.application.name}
+#      hostname: 192.168.88.230
       listener-port: 12321
       heartbeat-interval-millis: 1000
       heartbeat-timeout-millis: 2000
