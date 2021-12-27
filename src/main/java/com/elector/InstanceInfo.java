@@ -1,19 +1,20 @@
 package com.elector;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import static com.elector.Constant.ORDER_HIGHEST;
+import static com.elector.Constant.ORDER_UNASSIGNED;
+import static com.elector.Constant.STATE_ACTIVE;
+import static com.elector.Constant.STATE_SPARE;
 
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.Arrays;
-
-import static com.elector.Constant.*;
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 
 /** Holds service instance information */
 public class InstanceInfo implements Serializable {
   private final String id;
-  private final String name;
   private final String host;
   private String state;
   private int order;
@@ -22,14 +23,12 @@ public class InstanceInfo implements Serializable {
 
   InstanceInfo(
       String id,
-      String name,
       String host,
       String state,
       int order,
       long weight,
       Instant last) {
     this.id = id;
-    this.name = name;
     this.host = host;
     this.state = state;
     this.order = order;
@@ -87,10 +86,6 @@ public class InstanceInfo implements Serializable {
     return this.id;
   }
 
-  public String getName() {
-    return this.name;
-  }
-
   public String getHost() {
     return this.host;
   }
@@ -126,8 +121,6 @@ public class InstanceInfo implements Serializable {
   public String toString() {
     return "InstanceInfo(id="
         + this.getId()
-        + ", name="
-        + this.getName()
         + ", host="
         + this.getHost()
         + ", state="
@@ -144,7 +137,6 @@ public class InstanceInfo implements Serializable {
   public InstanceInfoBuilder toBuilder() {
     return new InstanceInfoBuilder()
         .id(this.id)
-        .name(this.name)
         .host(this.host)
         .state(this.state)
         .order(this.order)
@@ -154,7 +146,6 @@ public class InstanceInfo implements Serializable {
 
   public static class InstanceInfoBuilder {
     private String id;
-    private String name;
     private String host;
     private String state;
     private int order;
@@ -165,11 +156,6 @@ public class InstanceInfo implements Serializable {
 
     public InstanceInfoBuilder id(String id) {
       this.id = id;
-      return this;
-    }
-
-    public InstanceInfoBuilder name(String name) {
-      this.name = name;
       return this;
     }
 
@@ -199,7 +185,7 @@ public class InstanceInfo implements Serializable {
     }
 
     public InstanceInfo build() {
-      return new InstanceInfo(id, name, host, state, order, weight, last);
+      return new InstanceInfo(id, host, state, order, weight, last);
     }
 
   }

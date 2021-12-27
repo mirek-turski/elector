@@ -64,7 +64,7 @@ public class InstanceControllerTest {
   InstanceInfo self =
       InstanceInfo.builder().weight(1233L).order(ORDER_UNASSIGNED).state(STATE_INTRODUCED).build();
 
-  InstanceInfo intro =
+  InstanceInfo introducedInstance =
       InstanceInfo.builder().weight(1234L).order(ORDER_UNASSIGNED).state(STATE_INTRODUCED).build();
 
   private static InstanceInfo getInfo(InstanceController controller) {
@@ -269,8 +269,8 @@ public class InstanceControllerTest {
   @Test
   public void testResolveOrderSelfReadyPeerIntroduced() {
     properties.setPoolSize(2);
-    assertOrder(2, self.toBuilder().order(1).state(STATE_ACTIVE).build(), intro, null, null);
-    assertOrder(1, self.toBuilder().order(2).state(STATE_ACTIVE).build(), intro, null, null);
+    assertOrder(2, self.toBuilder().order(1).state(STATE_ACTIVE).build(), introducedInstance, null, null);
+    assertOrder(1, self.toBuilder().order(2).state(STATE_ACTIVE).build(), introducedInstance, null, null);
   }
 
   @Test
@@ -295,19 +295,19 @@ public class InstanceControllerTest {
   public void testResolveOrderWeighted() {
     properties.setPoolSize(4);
 
-    assertOrder(0, self, self, null, List.of(intro.toBuilder().weight(1234L).build()), 1, 2, 4);
-    assertOrder(3, self, self, null, List.of(intro.toBuilder().weight(1232L).build()), 1, 2, 4);
-    assertOrder(0, self, self, null, List.of(intro.toBuilder().weight(1234L).build()), 1, 2, 3);
-    assertOrder(4, self, self, null, List.of(intro.toBuilder().weight(1232L).build()), 1, 2, 3);
-    assertOrder(0, self, self, null, List.of(intro.toBuilder().weight(1234L).build()), 2, 3, 4);
-    assertOrder(1, self, self, null, List.of(intro.toBuilder().weight(1232L).build()), 2, 3, 4);
+    assertOrder(0, self, self, null, List.of(introducedInstance.toBuilder().weight(1234L).build()), 1, 2, 4);
+    assertOrder(3, self, self, null, List.of(introducedInstance.toBuilder().weight(1232L).build()), 1, 2, 4);
+    assertOrder(0, self, self, null, List.of(introducedInstance.toBuilder().weight(1234L).build()), 1, 2, 3);
+    assertOrder(4, self, self, null, List.of(introducedInstance.toBuilder().weight(1232L).build()), 1, 2, 3);
+    assertOrder(0, self, self, null, List.of(introducedInstance.toBuilder().weight(1234L).build()), 2, 3, 4);
+    assertOrder(1, self, self, null, List.of(introducedInstance.toBuilder().weight(1232L).build()), 2, 3, 4);
 
-    assertOrder(3, self, intro.toBuilder().weight(1234L).build(), null, null, 1, 2, 4);
-    assertOrder(0, self, intro.toBuilder().weight(1232L).build(), null, null, 1, 2, 4);
-    assertOrder(4, self, intro.toBuilder().weight(1234L).build(), null, null, 1, 2, 3);
-    assertOrder(0, self, intro.toBuilder().weight(1232L).build(), null, null, 1, 2, 3);
-    assertOrder(1, self, intro.toBuilder().weight(1234L).build(), null, null, 2, 3, 4);
-    assertOrder(0, self, intro.toBuilder().weight(1232L).build(), null, null, 2, 3, 4);
+    assertOrder(3, self, introducedInstance.toBuilder().weight(1234L).build(), null, null, 1, 2, 4);
+    assertOrder(0, self, introducedInstance.toBuilder().weight(1232L).build(), null, null, 1, 2, 4);
+    assertOrder(4, self, introducedInstance.toBuilder().weight(1234L).build(), null, null, 1, 2, 3);
+    assertOrder(0, self, introducedInstance.toBuilder().weight(1232L).build(), null, null, 1, 2, 3);
+    assertOrder(1, self, introducedInstance.toBuilder().weight(1234L).build(), null, null, 2, 3, 4);
+    assertOrder(0, self, introducedInstance.toBuilder().weight(1232L).build(), null, null, 2, 3, 4);
   }
 
   private void assertOrder(
@@ -372,7 +372,6 @@ public class InstanceControllerTest {
           InstanceInfo.builder()
               .id(uuid)
               .weight((long) (System.currentTimeMillis() * Math.random()))
-              .name("elector-test-" + uuid)
               .host(ip)
               .order(ORDER_UNASSIGNED)
               .state(STATE_NEW)

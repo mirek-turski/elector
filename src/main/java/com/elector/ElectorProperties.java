@@ -15,7 +15,7 @@ public class ElectorProperties {
   boolean enabled = true;
 
   @NotBlank
-  @Value("${spring.application.name:unknown}")
+  @Value("${spring.application.name}")
   private String serviceName;
 
   @Min(1)
@@ -32,6 +32,8 @@ public class ElectorProperties {
 
   @Positive
   private int poolSize = 1;
+
+  private boolean quorumRequired = true;
 
   public boolean isEnabled() {
     return this.enabled;
@@ -61,6 +63,8 @@ public class ElectorProperties {
     return this.poolSize;
   }
 
+  public boolean isQuorumRequired() { return quorumRequired; }
+
   public void setEnabled(boolean enabled) {
     this.enabled = enabled;
   }
@@ -89,6 +93,8 @@ public class ElectorProperties {
     this.poolSize = poolSize;
   }
 
+  public void setQuorumRequired(boolean quorumRequired) { this.quorumRequired = quorumRequired; }
+
   public String toString() {
     return "ElectorProperties(enabled="
         + this.isEnabled()
@@ -104,6 +110,8 @@ public class ElectorProperties {
         + this.getHeartbeatTimeoutMillis()
         + ", poolSize="
         + this.getPoolSize()
+        + ", quorumRequired="
+        + this.isQuorumRequired()
         + ")";
   }
 }

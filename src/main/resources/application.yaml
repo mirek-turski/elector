@@ -21,9 +21,9 @@ spring:
             elector-demo:
               - instanceId: ${spring.application.name}#1
                 host: 192.168.123.1
-              - instanceId: ${spring.application.name}#1
+              - instanceId: ${spring.application.name}#2
                 host: 192.168.123.2
-              - instanceId: ${spring.application.name}#1
+              - instanceId: ${spring.application.name}#3
                 host: 192.168.123.3
     elector:
       enabled: true
@@ -31,7 +31,7 @@ spring:
 #      hostname: 192.168.88.230
       listener-port: 12321
       heartbeat-interval-millis: 1000
-      heartbeat-timeout-millis: 2000
+      heartbeat-timeout-millis: 3000
       poolSize: 1
     kubernetes:
       enabled: false

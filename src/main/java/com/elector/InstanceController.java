@@ -88,12 +88,18 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
   /** Initiates peer management after application context gets refreshed */
   @EventListener(ContextRefreshedEvent.class)
   public void initialize() {
+    Map<String, InstanceInfo> discoveredPeers = discoverPeers();
     peers.clear();
-    peers.putAll(discoverPeers());
+    peers.putAll(discoveredPeers);
     if (peers.isEmpty()) {
       // No peers, so we immediately usurp the highest order
       setInstanceReady(ORDER_HIGHEST, STATE_ACTIVE);
     } else {
+      if (log.isDebugEnabled()) {
+        log.debug(
+            "Discovered peers: {}",
+            Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
+      }
       selfInfo.setState(STATE_INTRODUCED);
       vote();
     }
@@ -118,7 +124,6 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
     final InstanceInfo sender =
         InstanceInfo.builder()
             .id(event.getId())
-            .name(event.getName())
             .host(event.getHost())
             .state(event.getState())
             .order(event.getOrder())
@@ -144,11 +149,11 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
     }
 
     if (EVENT_MESSAGE.equals(event.getEvent())) {
-      Map<String, String> properties = event.getProperties();
-      if (properties != null && properties.containsKey(PROPERTY_MESSAGE_ID)) {
-        String messageId = properties.get(PROPERTY_MESSAGE_ID);
-        properties.remove(PROPERTY_MESSAGE_ID);
-        eventPublisher.publishEvent(new InstanceMessageEvent(this, sender, messageId, properties));
+      Map<String, String> eventProperties = event.getProperties();
+      if (eventProperties != null && eventProperties.containsKey(PROPERTY_MESSAGE_ID)) {
+        String messageId = eventProperties.get(PROPERTY_MESSAGE_ID);
+        eventProperties.remove(PROPERTY_MESSAGE_ID);
+        eventPublisher.publishEvent(new InstanceMessageEvent(this, sender, messageId, eventProperties));
       } else {
         log.warn("Invalid event format {}. Missing {} property.", event, PROPERTY_MESSAGE_ID);
       }
@@ -277,23 +282,23 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
       final Map<String, InstanceInfo> discoveredPeers = discoverPeers();
       absentPeers.forEach(
           absentPeer -> {
-            if (discoveredPeers.containsKey(absentPeer.getId())) {
-              log.warn(
-                  "Instance heartbeat timeout occurred for pod {} with IP={}, "
-                      + "but it is still reported by discovery client",
-                  absentPeer.getName(),
-                  absentPeer.getHost());
-              peers.get(absentPeer.getId()).setState(STATE_ABSENT);
-              // What to do if the problem persists? Give it a bit more time and permanently remove?
-              // For now, such an instance will be kept in the pool
-            } else {
+            if (!discoveredPeers.containsKey(absentPeer.getId())) {
               log.debug(
-                  "Removing absent pod {} with IP={}", absentPeer.getName(), absentPeer.getHost());
+                  "Removing missing instance {} [{}]", absentPeer.getId(), absentPeer.getHost());
               peers.remove(absentPeer.getId());
               eventPublisher.publishEvent(new InstanceRemovedEvent(this, absentPeer));
               if (absentPeer.isAssigned() && selfInfo.inState(STATE_SPARE)) {
                 vote();
               }
+            } else if (absentPeer.inNeitherState(STATE_ABSENT)) {
+              log.warn(
+                  "Instance heartbeat timeout occurred for instance {} [{}], "
+                      + "but it is still reported by discovery client",
+                  absentPeer.getId(),
+                  absentPeer.getHost());
+              peers.get(absentPeer.getId()).setState(STATE_ABSENT);
+              // What to do if the problem persists? Give it a bit more time and permanently remove?
+              // For now, such an instance will be kept in the pool
             }
           });
     }
@@ -328,48 +333,57 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
   /** Check if we got all votes and we have consensus */
   private void checkBallots() {
 
+    // No vote initiated by this instance
     if (voteInitiationTime == null) {
       return;
     }
 
-    if (Duration.between(voteInitiationTime, Instant.now()).toMillis()
-        > properties.getHeartbeatTimeoutMillis()) {
-      log.debug("Stale ballot, voting again...");
-      vote();
-      return;
-    }
+    if (properties.isQuorumRequired()) {
 
-    if (ballots.isEmpty()
-        || peers.values().stream().anyMatch(peer -> peer.inState(STATE_DISCOVERED))) {
-      return;
-    }
-
-    if (ballots.size() == peers.size()) {
-      int updatedSelfOrder = resolveOrder(selfInfo);
-      boolean consensus =
-          ballots.values().stream()
-              .allMatch(
-                  event -> {
-                    int proposedOrder =
-                        Integer.parseInt(
-                            getEventProperty(ballots.get(event.getId()), PROPERTY_ORDER));
-                    return updatedSelfOrder == proposedOrder;
-                  });
-      if (consensus) {
-        ballots.clear();
-        voteInitiationTime = null;
-        if (updatedSelfOrder == ORDER_UNASSIGNED) {
-          log.debug("Pool of instances exhausted, marking this instance spare");
-          setInstanceReady(ORDER_UNASSIGNED, STATE_SPARE);
-        } else {
-          log.debug("Consensus reached, activating this instance with order #{}", updatedSelfOrder);
-          setInstanceReady(updatedSelfOrder, STATE_ACTIVE);
-        }
-      } else {
-        log.debug("No consensus, voting again...");
+      if (Duration.between(voteInitiationTime, Instant.now()).toMillis()
+          > properties.getHeartbeatTimeoutMillis()) {
+        log.debug("Stale ballot, voting again...");
         vote();
+        return;
       }
+
+      if (ballots.isEmpty()
+          || peers.values().stream().anyMatch(peer -> peer.inState(STATE_DISCOVERED))) {
+        return;
+      }
+
+      if (ballots.size() == peers.size()) {
+        int updatedSelfOrder = resolveOrder(selfInfo);
+        boolean consensus =
+            ballots.values().stream()
+                .allMatch(
+                    event -> {
+                      int proposedOrder =
+                          Integer.parseInt(
+                              getEventProperty(ballots.get(event.getId()), PROPERTY_ORDER));
+                      return updatedSelfOrder == proposedOrder;
+                    });
+        if (consensus) {
+          ballots.clear();
+          voteInitiationTime = null;
+          if (updatedSelfOrder == ORDER_UNASSIGNED) {
+            log.debug("Pool of instances exhausted, marking this instance spare");
+            setInstanceReady(ORDER_UNASSIGNED, STATE_SPARE);
+          } else {
+            log.debug("Consensus reached, activating this instance with order #{}", updatedSelfOrder);
+            setInstanceReady(updatedSelfOrder, STATE_ACTIVE);
+          }
+        } else {
+          log.debug("No consensus, voting again...");
+          vote();
+        }
+      }
+    } else {
+
+      // TODO: Work out the case when not all peers voted in the time provided
+
     }
+
   }
 
   private void setInstanceReady(int order, final String state) {
@@ -386,7 +400,6 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
     return ElectorEvent.builder()
         .event(EVENT_HELLO)
         .id(selfInfo.getId())
-        .name(selfInfo.getName())
         .host(selfInfo.getHost())
         .state(selfInfo.getState())
         .order(selfInfo.getOrder())
@@ -418,8 +431,8 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
             } else {
               peer.setState(STATE_ABSENT);
               log.debug(
-                  "Failed to notify pod {} with IP={}, marking as absent",
-                  peer.getName(),
+                  "Failed to notify instance {} [{}], marking as absent",
+                  peer.getId(),
                   peer.getHost());
             }
           });
@@ -440,7 +453,6 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
                   InstanceInfo.builder()
                       .id(serviceInstance.getInstanceId())
                       .weight(0)
-                      .name(properties.getServiceName())
                       .host(serviceInstance.getHost())
                       .order(ORDER_UNASSIGNED)
                       .state(STATE_DISCOVERED)
@@ -448,11 +460,6 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
                       .build();
               discoveredPeers.put(info.getId(), info);
             });
-    if (!discoveredPeers.isEmpty()) {
-      log.debug(
-          "Discovered peers: {}",
-          Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
-    }
     return discoveredPeers;
   }
 
