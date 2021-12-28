@@ -12,6 +12,10 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "spring.cloud.elector")
 public class ElectorProperties {
 
+  public enum BallotType {
+    TIMED, QUORUM, UNANIMOUS;
+  }
+
   boolean enabled = true;
 
   @NotBlank
@@ -33,7 +37,13 @@ public class ElectorProperties {
   @Positive
   private int poolSize = 1;
 
+  // TODO: replace with votingMethod emum:
+  //  TIMED Vote hold for a period of time equal to heartbeatTimeoutMillis
+  //  QUORUM Vote held as long as at least the number of voting instances equals poolSize
+  //  UNANIMOUS Vote held as long as all the discovered instances reply
   private boolean quorumRequired = true;
+
+  private BallotType ballotType = BallotType.QUORUM;
 
   public boolean isEnabled() {
     return this.enabled;
