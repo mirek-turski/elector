@@ -32,7 +32,10 @@ spring:
       listener-port: 12321
       heartbeat-interval-millis: 1000
       heartbeat-timeout-millis: 3000
+      ballot-timeout-millis: 1000
       poolSize: 1
+      # TIMED, QUORUM, UNANIMOUS
+      ballot-type: QUORUM
     kubernetes:
       enabled: false
       discovery:

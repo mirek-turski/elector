@@ -18,9 +18,7 @@ import javax.validation.constraints.NotBlank;
 public class ElectorEvent implements Serializable {
   @NotBlank private final String event;
   @NotBlank private final String id;
-  @NotBlank private final String name;
   @NotBlank private final String host;
-  @NotBlank private final String namespace;
   @NotBlank private final String state;
   private final int order;
   private final long weight;
@@ -29,18 +27,14 @@ public class ElectorEvent implements Serializable {
   ElectorEvent(
       @NotBlank String event,
       @NotBlank String id,
-      @NotBlank String name,
       @NotBlank String host,
-      @NotBlank String namespace,
       @NotBlank String state,
       int order,
       long weight,
       @Nullable Map<String, String> properties) {
     this.event = event;
     this.id = id;
-    this.name = name;
     this.host = host;
-    this.namespace = namespace;
     this.state = state;
     this.order = order;
     this.weight = weight;
@@ -59,16 +53,8 @@ public class ElectorEvent implements Serializable {
     return this.id;
   }
 
-  public @NotBlank String getName() {
-    return this.name;
-  }
-
   public @NotBlank String getHost() {
     return this.host;
-  }
-
-  public @NotBlank String getNamespace() {
-    return this.namespace;
   }
 
   public @NotBlank String getState() {
@@ -93,12 +79,8 @@ public class ElectorEvent implements Serializable {
         + this.getEvent()
         + ", id="
         + this.getId()
-        + ", name="
-        + this.getName()
         + ", host="
         + this.getHost()
-        + ", namespace="
-        + this.getNamespace()
         + ", state="
         + this.getState()
         + ", order="
@@ -114,9 +96,7 @@ public class ElectorEvent implements Serializable {
     return new EventBuilder()
         .event(this.event)
         .id(this.id)
-        .name(this.name)
         .host(this.host)
-        .namespace(this.namespace)
         .state(this.state)
         .order(this.order)
         .weight(this.weight)
@@ -128,9 +108,7 @@ public class ElectorEvent implements Serializable {
   public static class EventBuilder {
     private @NotBlank String event;
     private @NotBlank String id;
-    private @NotBlank String name;
     private @NotBlank String host;
-    private @NotBlank String namespace;
     private @NotBlank String state;
     private int order;
     private long weight;
@@ -148,18 +126,8 @@ public class ElectorEvent implements Serializable {
       return this;
     }
 
-    public EventBuilder name(@NotBlank String name) {
-      this.name = name;
-      return this;
-    }
-
     public EventBuilder host(@NotBlank String host) {
       this.host = host;
-      return this;
-    }
-
-    public EventBuilder namespace(@NotBlank String namespace) {
-      this.namespace = namespace;
       return this;
     }
 
@@ -184,7 +152,7 @@ public class ElectorEvent implements Serializable {
     }
 
     public ElectorEvent build() {
-      return new ElectorEvent(event, id, name, host, namespace, state, order, weight, properties);
+      return new ElectorEvent(event, id, host, state, order, weight, properties);
     }
   }
 }

@@ -17,7 +17,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
+import com.elector.utils.LogUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
@@ -36,7 +36,6 @@ import javax.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.ApplicationEvent;
@@ -50,13 +49,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 public class InstanceControllerTest {
 
-  private static final Logger log = LoggerFactory.getLogger(InstanceControllerTest.class);
-
-  static {
-    LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-    loggerContext.getLogger("ROOT").setLevel(Level.ERROR);
-    loggerContext.getLogger("com.elector").setLevel(Level.DEBUG);
-  }
+  private static final Logger log = LogUtils.createConsoleLogger("com.elector", Level.TRACE);
 
   private final ElectorProperties properties = new ElectorProperties();
   final InstanceController controller = new InstanceController(properties, null, null, null, null);
@@ -584,7 +577,7 @@ public class InstanceControllerTest {
 
   private static class EventDispatcher implements IntegrationFlow {
 
-    private final SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor();
+    private final SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("input-");
 
     private final Map<String, InstanceController> controllers = new HashMap<>();
 

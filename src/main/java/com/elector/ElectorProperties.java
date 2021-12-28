@@ -3,6 +3,7 @@ package com.elector;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -12,8 +13,29 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "spring.cloud.elector")
 public class ElectorProperties {
 
+  /**
+   * Decides how the ballot is performed based on the number of votes received (equal to the number of live instances),
+   * number of discovered instances, the poolSize of instances and the ballotTimeoutMillis.
+   */
   public enum BallotType {
-    TIMED, QUORUM, UNANIMOUS;
+    /**
+     * Vote held for a period of time equal to ballotTimeoutMillis.
+     * Only those votes that arrived by the time are considered when deciding instance order.
+     */
+    TIMED,
+
+    /**
+     * Ballot held for as long as at least the number of the votes received equals the poolSize.
+     * If the quorum is not reached, the voting will be repeated util it is.
+     * Note that the number of live instances is lower than the poolSize this voting type will
+     * result in the instance requesting the vote not being assigned an order for as long as the quorum is not reached.
+     */
+    QUORUM,
+
+    /**
+     * Vote held until all the discovered instances reply to call for vote.
+     */
+    UNANIMOUS
   }
 
   boolean enabled = true;
@@ -35,14 +57,12 @@ public class ElectorProperties {
   private int heartbeatTimeoutMillis = 3000;
 
   @Positive
+  private int ballotTimeoutMillis = 1000;
+
+  @Positive
   private int poolSize = 1;
 
-  // TODO: replace with votingMethod emum:
-  //  TIMED Vote hold for a period of time equal to heartbeatTimeoutMillis
-  //  QUORUM Vote held as long as at least the number of voting instances equals poolSize
-  //  UNANIMOUS Vote held as long as all the discovered instances reply
-  private boolean quorumRequired = true;
-
+  @NotNull
   private BallotType ballotType = BallotType.QUORUM;
 
   public boolean isEnabled() {
@@ -69,11 +89,17 @@ public class ElectorProperties {
     return this.heartbeatTimeoutMillis;
   }
 
+  public @Positive int getBallotTimeoutMillis() {
+    return this.ballotTimeoutMillis;
+  }
+
   public @Positive int getPoolSize() {
     return this.poolSize;
   }
 
-  public boolean isQuorumRequired() { return quorumRequired; }
+  public @NotNull BallotType getBallotType() {
+    return this.ballotType;
+  }
 
   public void setEnabled(boolean enabled) {
     this.enabled = enabled;
@@ -99,11 +125,17 @@ public class ElectorProperties {
     this.heartbeatTimeoutMillis = heartbeatTimeoutMillis;
   }
 
+  public void setBallotTimeoutMillis(@Positive int ballotTimeoutMillis) {
+    this.ballotTimeoutMillis = ballotTimeoutMillis;
+  }
+
   public void setPoolSize(@Positive int poolSize) {
     this.poolSize = poolSize;
   }
 
-  public void setQuorumRequired(boolean quorumRequired) { this.quorumRequired = quorumRequired; }
+  public void setBallotType(@NotNull BallotType ballotType) {
+    this.ballotType = ballotType;
+  }
 
   public String toString() {
     return "ElectorProperties(enabled="
@@ -118,10 +150,12 @@ public class ElectorProperties {
         + this.getHeartbeatIntervalMillis()
         + ", heartbeatTimeoutMillis="
         + this.getHeartbeatTimeoutMillis()
+        + ", ballotTimeoutMillis="
+        + this.getBallotTimeoutMillis()
         + ", poolSize="
         + this.getPoolSize()
-        + ", quorumRequired="
-        + this.isQuorumRequired()
+        + ", ballotType="
+        + this.getBallotType()
         + ")";
   }
 }

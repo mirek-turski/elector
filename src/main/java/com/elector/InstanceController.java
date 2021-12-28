@@ -15,6 +15,7 @@ import static com.elector.Constant.STATE_DISCOVERED;
 import static com.elector.Constant.STATE_INTRODUCED;
 import static com.elector.Constant.STATE_SPARE;
 
+import com.elector.ElectorProperties.BallotType;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -109,7 +110,7 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
   @Override
   public synchronized Object handle(ElectorEvent event, MessageHeaders headers) {
 
-    // No event processing takes places until the instance is fully initialized.
+    // No event processing takes place until the instance is fully initialized.
     // Note that we may start receiving events from peers before that controller is actually
     // ready.
     try {
@@ -130,7 +131,10 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
             .weight(event.getWeight())
             .build();
     sender.setLast(Instant.now());
-    peers.put(event.getId(), sender);
+    if (peers.containsKey(sender.getId()) && peers.get(sender.getId()).inState(STATE_ABSENT)) {
+      log.info("Instance {} [{}] is back online in {} state", sender.getId(), sender.getHost(), sender.getState());
+    }
+    peers.put(sender.getId(), sender);
 
     if (EVENT_VOTE.equals(event.getEvent())) {
       final String candidateId = getEventProperty(event, PROPERTY_CANDIDATE);
@@ -278,7 +282,7 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
                         > properties.getHeartbeatTimeoutMillis())
             .collect(Collectors.toList());
     if (!absentPeers.isEmpty()) {
-      // Firstly, confirm that the absent peer disappeared from Kubernetes
+      // Firstly, confirm that the absent peer is not discoverable (i.e. disappeared from Kubernetes).
       final Map<String, InstanceInfo> discoveredPeers = discoverPeers();
       absentPeers.forEach(
           absentPeer -> {
@@ -292,8 +296,8 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
               }
             } else if (absentPeer.inNeitherState(STATE_ABSENT)) {
               log.warn(
-                  "Instance heartbeat timeout occurred for instance {} [{}], "
-                      + "but it is still reported by discovery client",
+                  "Heartbeat timeout occurred for instance {} [{}], but it is still reported by discovery client. "
+                      + "Marking as absent.",
                   absentPeer.getId(),
                   absentPeer.getHost());
               peers.get(absentPeer.getId()).setState(STATE_ABSENT);
@@ -338,52 +342,53 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
       return;
     }
 
-    if (properties.isQuorumRequired()) {
+    final boolean ballotFinished = Duration.between(voteInitiationTime, Instant.now()).toMillis()
+        > properties.getBallotTimeoutMillis();
 
-      if (Duration.between(voteInitiationTime, Instant.now()).toMillis()
-          > properties.getHeartbeatTimeoutMillis()) {
+    if (properties.getBallotType().equals(BallotType.TIMED) && ballotFinished) {
+      elect();
+    } else if (properties.getBallotType().equals(BallotType.QUORUM)) {
+      if (ballots.size() + 1 >= properties.getPoolSize()) {
+        elect();
+      } else if (ballotFinished) {
         log.debug("Stale ballot, voting again...");
         vote();
-        return;
       }
-
-      if (ballots.isEmpty()
-          || peers.values().stream().anyMatch(peer -> peer.inState(STATE_DISCOVERED))) {
-        return;
-      }
-
+    } else if (properties.getBallotType().equals(BallotType.UNANIMOUS)) {
       if (ballots.size() == peers.size()) {
-        int updatedSelfOrder = resolveOrder(selfInfo);
-        boolean consensus =
-            ballots.values().stream()
-                .allMatch(
-                    event -> {
-                      int proposedOrder =
-                          Integer.parseInt(
-                              getEventProperty(ballots.get(event.getId()), PROPERTY_ORDER));
-                      return updatedSelfOrder == proposedOrder;
-                    });
-        if (consensus) {
-          ballots.clear();
-          voteInitiationTime = null;
-          if (updatedSelfOrder == ORDER_UNASSIGNED) {
-            log.debug("Pool of instances exhausted, marking this instance spare");
-            setInstanceReady(ORDER_UNASSIGNED, STATE_SPARE);
-          } else {
-            log.debug("Consensus reached, activating this instance with order #{}", updatedSelfOrder);
-            setInstanceReady(updatedSelfOrder, STATE_ACTIVE);
-          }
-        } else {
-          log.debug("No consensus, voting again...");
-          vote();
-        }
+        elect();
+      } else if (ballotFinished) {
+        log.debug("Stale ballot, voting again...");
+        vote();
+      }
+    }
+  }
+
+  private void elect() {
+    int updatedSelfOrder = resolveOrder(selfInfo);
+    boolean consensus =
+        ballots.values().stream()
+            .allMatch(
+                event -> {
+                  int proposedOrder =
+                      Integer.parseInt(
+                          getEventProperty(ballots.get(event.getId()), PROPERTY_ORDER));
+                  return updatedSelfOrder == proposedOrder;
+                });
+    if (consensus) {
+      ballots.clear();
+      voteInitiationTime = null;
+      if (updatedSelfOrder == ORDER_UNASSIGNED) {
+        log.debug("Pool of instances exhausted, marking this instance spare");
+        setInstanceReady(ORDER_UNASSIGNED, STATE_SPARE);
+      } else {
+        log.debug("Consensus reached, activating this instance with order #{}", updatedSelfOrder);
+        setInstanceReady(updatedSelfOrder, STATE_ACTIVE);
       }
     } else {
-
-      // TODO: Work out the case when not all peers voted in the time provided
-
+      log.debug("No consensus, voting again...");
+      vote();
     }
-
   }
 
   private void setInstanceReady(int order, final String state) {
