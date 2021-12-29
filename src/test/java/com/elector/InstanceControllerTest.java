@@ -12,11 +12,13 @@ import static com.elector.Constant.STATE_SPARE;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import ch.qos.logback.classic.Level;
+import com.elector.ElectorProperties.BallotType;
 import com.elector.utils.LogUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -36,6 +38,7 @@ import javax.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.Logger;
+import org.springframework.cloud.client.DefaultServiceInstance;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.ApplicationEvent;
@@ -62,6 +65,29 @@ public class InstanceControllerTest {
 
   private static InstanceInfo getInfo(InstanceController controller) {
     return (InstanceInfo) ReflectionTestUtils.getField(controller, "selfInfo");
+  }
+
+  @Test
+  public void testTimedBallot() {
+    log.info("==================== Running testTimedBallot");
+    TestEnvironment env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.TIMED).build();
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    log.info(">>>>>> Starting first instance");
+    env.startPods(ip1);
+    fail();
+  }
+
+  @Test
+  public void testQuorumBallot() {
+    log.info("==================== Running testQuorumBallot");
+    fail("testQuorumBallot not implemented");
+  }
+
+  @Test
+  public void testUnanimousBallot() {
+    log.info("==================== Running testUnanimousBallot");
+    fail("testUnanimousBallot not implemented");
   }
 
   @Test
@@ -339,7 +365,7 @@ public class InstanceControllerTest {
 
     private final EventDispatcher eventDispatcher = new EventDispatcher();
     private final DiscoveryClientStub discoveryClient = new DiscoveryClientStub();
-    private final Map<String, ServiceInstanceStub> serviceInstances = new HashMap<>();
+    private final Map<String, DefaultServiceInstance> serviceInstances = new HashMap<>();
     private final Map<String, ApplicationEventPublisher> eventPublishers = new HashMap<>();
     private final Map<String, ScheduledTaskRegistrar> taskRegistrars = new HashMap<>();
     private final ElectorProperties properties;
@@ -371,7 +397,9 @@ public class InstanceControllerTest {
               .last(Instant.now())
               .build();
 
-      final ServiceInstanceStub serviceInstance = new ServiceInstanceStub(uuid, ip);
+      final DefaultServiceInstance serviceInstance = new DefaultServiceInstance();
+      serviceInstance.setInstanceId(uuid);
+      serviceInstance.setHost(ip);
       final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
       final ScheduledTaskRegistrar taskRegistrar = new ScheduledTaskRegistrar();
 
@@ -434,7 +462,7 @@ public class InstanceControllerTest {
       return this.discoveryClient;
     }
 
-    public Map<String, ServiceInstanceStub> getServiceInstances() {
+    public Map<String, DefaultServiceInstance> getServiceInstances() {
       return this.serviceInstances;
     }
 
@@ -458,6 +486,8 @@ public class InstanceControllerTest {
       private int newIp = 1;
       private int heartbeatIntervalMillis = 200;
       private int heartbeatTimeoutMillis = 500;
+      private int ballotTimeoutMillis = 200;
+      private BallotType ballotType = BallotType.QUORUM;
       private int poolSize = 1;
 
       TestEnvironmentBuilder() {}
@@ -477,8 +507,18 @@ public class InstanceControllerTest {
         return this;
       }
 
+      public TestEnvironmentBuilder ballotTimeoutMillis(int ballotTimeoutMillis) {
+        this.ballotTimeoutMillis = ballotTimeoutMillis;
+        return this;
+      }
+
       public TestEnvironmentBuilder poolSize(int poolSize) {
         this.poolSize = poolSize;
+        return this;
+      }
+
+      public TestEnvironmentBuilder ballotType(BallotType ballotType) {
+        this.ballotType = ballotType;
         return this;
       }
 
@@ -488,6 +528,8 @@ public class InstanceControllerTest {
         properties.setPoolSize(poolSize);
         properties.setHeartbeatIntervalMillis(heartbeatIntervalMillis);
         properties.setHeartbeatTimeoutMillis(heartbeatTimeoutMillis);
+        properties.setBallotTimeoutMillis(ballotTimeoutMillis);
+        properties.setBallotType(ballotType);
         return new TestEnvironment(newIp, properties);
       }
     }
@@ -526,52 +568,6 @@ public class InstanceControllerTest {
     @Override
     public List<String> getServices() {
       return List.of("kubernetes", "elector-test");
-    }
-  }
-
-  private static class ServiceInstanceStub implements ServiceInstance {
-
-    private final String instanceId;
-    private final String host;
-
-    public ServiceInstanceStub(String instanceId, String host) {
-      this.instanceId = instanceId;
-      this.host = host;
-    }
-
-    @Override
-    public String getInstanceId() {
-      return instanceId;
-    }
-
-    @Override
-    public String getServiceId() {
-      return null;
-    }
-
-    @Override
-    public String getHost() {
-      return host;
-    }
-
-    @Override
-    public int getPort() {
-      return 0;
-    }
-
-    @Override
-    public boolean isSecure() {
-      return false;
-    }
-
-    @Override
-    public URI getUri() {
-      return null;
-    }
-
-    @Override
-    public Map<String, String> getMetadata() {
-      return null;
     }
   }
 

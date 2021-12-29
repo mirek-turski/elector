@@ -10,13 +10,15 @@ import org.slf4j.LoggerFactory;
 
 public class LogUtils {
 
+  private static final String DEFAULT_LOG_PATTERN = "%date{HH:mm:ss.SSS} %5level{0} [%-15.15thread] %-30.30logger{39} : %msg%n";
+
   public static Logger createConsoleLogger(String name, Level level) {
     LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
 
     context.getLogger("ROOT").setLevel(Level.ERROR);
 
     PatternLayoutEncoder encoder = new PatternLayoutEncoder();
-    encoder.setPattern("%date{HH:mm:ss.SSS} %5.5level{0} [%8.8thread] %logger{10} %msg%n");
+    encoder.setPattern(DEFAULT_LOG_PATTERN);
     encoder.setContext(context);
     encoder.start();
 
