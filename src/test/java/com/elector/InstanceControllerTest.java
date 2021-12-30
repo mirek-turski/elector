@@ -22,11 +22,14 @@ import com.elector.ElectorProperties.BallotType;
 import com.elector.utils.LogUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.validation.constraints.NotNull;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.Logger;
@@ -67,21 +71,48 @@ public class InstanceControllerTest {
     return (InstanceInfo) ReflectionTestUtils.getField(controller, "selfInfo");
   }
 
+  private TestEnvironment env;
+
+  @AfterEach
+  public void cleanUp() {
+
+  }
+
   @Test
   public void testTimedBallot() {
     log.info("==================== Running testTimedBallot");
     TestEnvironment env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.TIMED).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
-    log.info(">>>>>> Starting first instance");
-    env.startPods(ip1);
-    fail();
+    log.info(">>>>>> Starting 1st instance");
+    Instant start = Instant.now();
+    Set<InstanceController> controllers = env.startPods(true, ip1);
+    assertTrue(Duration.between(start, Instant.now()).toMillis() > env.getProperties().getBallotTimeoutMillis());
+    assertTrue(getInfo(controllers.stream().findFirst().get()).isActive());
+    assertEquals(1, getInfo(controllers.stream().findFirst().get()).getOrder());
+    log.info(">>>>>> Starting 2nd instance");
+    controllers = env.startPods(true, ip2);
+    assertTrue(getInfo(controllers.stream().findFirst().get()).isActive());
+    assertEquals(2, getInfo(controllers.stream().findFirst().get()).getOrder());
   }
 
   @Test
   public void testQuorumBallot() {
     log.info("==================== Running testQuorumBallot");
-    fail("testQuorumBallot not implemented");
+    TestEnvironment env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.QUORUM).build();
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    log.info(">>>>>> Starting 1st instance");
+    Set<InstanceController> controllers = new HashSet<>();
+    controllers.addAll(env.startPods(false, ip1));
+    await().timeout(env.getProperties().getBallotTimeoutMillis() * 2L, TimeUnit.MILLISECONDS);
+    assertEquals(STATE_INTRODUCED, getInfo(controllers.stream().findFirst().get()).getState());
+    assertEquals(0, getInfo(controllers.stream().findFirst().get()).getOrder());
+    log.info(">>>>>> Starting 2nd instance");
+    controllers.addAll(env.startPods(false, ip2));
+    env.awaitActivation(controllers);
+
+    // TODO: assert order numbers of the two instances
   }
 
   @Test
@@ -98,22 +129,10 @@ public class InstanceControllerTest {
     String ip2 = env.addPod();
     String ip3 = env.addPod();
     log.info(">>>>>> Electing leader from amongst three candidates");
-    env.startPods(ip1, ip2, ip3);
     Set<InstanceController> controllers =
-        Set.of(env.getController(ip1), env.getController(ip2), env.getController(ip3));
-    final Set<InstanceInfo> instances = new HashSet<>();
-    await()
-        .atMost(3000, TimeUnit.MILLISECONDS)
-        .until(
-            () ->
-                controllers.stream()
-                    .allMatch(
-                        controller -> {
-                          InstanceInfo instance =
-                              (InstanceInfo) ReflectionTestUtils.getField(controller, "selfInfo");
-                          instances.add(instance);
-                          return instance.inEitherState(STATE_ACTIVE, STATE_SPARE);
-                        }));
+        env.startPods(true, ip1, ip2, ip3);
+    final Set<InstanceInfo> instances =
+        controllers.stream().map(InstanceControllerTest::getInfo).collect(Collectors.toSet());
     assertEquals(3, instances.size());
     List<InstanceInfo> leaders =
         instances.stream().filter(InstanceInfo::isLeader).collect(Collectors.toList());
@@ -149,7 +168,7 @@ public class InstanceControllerTest {
     log.info("==================== Running testHighestOrderWithNoPeers");
     TestEnvironment env = TestEnvironment.builder().build();
     String ip = env.addPod();
-    env.startPods(ip);
+    env.startPods(true, ip);
     ArgumentCaptor<InstanceReadyEvent> argumentCaptor =
         ArgumentCaptor.forClass(InstanceReadyEvent.class);
     verify(env.getEventPublishers().get(ip), timeout(3000).times(1))
@@ -165,7 +184,7 @@ public class InstanceControllerTest {
     TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
-    env.startPods(ip1, ip2);
+    env.startPods(true, ip1, ip2);
 
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
     verify(env.getEventPublishers().get(ip1), timeout(3000).times(1))
@@ -198,9 +217,9 @@ public class InstanceControllerTest {
     TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
-    env.startPods(ip1, ip2);
+    env.startPods(true, ip1, ip2);
     String ip3 = env.addPod();
-    env.startPods(ip3);
+    env.startPods(true, ip3);
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
     verify(env.getEventPublishers().get(ip3), timeout(3000).times(1))
         .publishEvent(eventCaptor.capture());
@@ -215,10 +234,10 @@ public class InstanceControllerTest {
     log.info(">>>>>> Starting up two instances simultaneously");
     String ip1 = env.addPod();
     String ip2 = env.addPod();
-    env.startPods(ip1, ip2);
+    env.startPods(true, ip1, ip2);
     log.info(">>>>>> Starting spare instance");
     String ip3 = env.addPod();
-    env.startPods(ip3);
+    env.startPods(true, ip3);
     int orderToClaim = getInfo(env.getController(ip2)).getOrder();
     log.info(">>>>>> Removing second/active instance");
     env.deletePod(ip2);
@@ -246,10 +265,10 @@ public class InstanceControllerTest {
     log.info(">>>>>> Starting up two instances simultaneously");
     String ip1 = env.addPod();
     String ip2 = env.addPod();
-    env.startPods(ip1, ip2);
+    env.startPods(true, ip1, ip2);
     log.info(">>>>>> Starting spare instance");
     String ip3 = env.addPod();
-    env.startPods(ip3);
+    env.startPods(true, ip3);
     InstanceController controller1 = env.getController(ip1);
     InstanceController controller3 = env.getController(ip3);
     log.info(">>>>>> Muting instance #1");
@@ -361,6 +380,24 @@ public class InstanceControllerTest {
     assertEquals(expected, result);
   }
 
+  private void assertWeightedOrder(InstanceInfo...instances) {
+    Set<InstanceInfo> weightedInstances =
+        Arrays.stream(instances)
+            .sorted(Comparator.comparingLong(InstanceInfo::getOrder).reversed())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+
+    int length = instances.length;
+    Optional<InstanceInfo> o1 =
+        instances.stream().filter(instance -> instance.getOrder() == 1).findFirst();
+    Optional<InstanceInfo> o2 =
+        instances.stream().filter(instance -> instance.getOrder() == 2).findFirst();
+    assertTrue(o1.isPresent());
+    assertTrue(o2.isPresent());
+    assertTrue(o1.get().getWeight() > o2.get().getWeight());
+
+  }
+
   private static class TestEnvironment {
 
     private final EventDispatcher eventDispatcher = new EventDispatcher();
@@ -371,7 +408,7 @@ public class InstanceControllerTest {
     private final ElectorProperties properties;
     private int newIp;
 
-    TestEnvironment(int newIp, ElectorProperties properties) {
+    private TestEnvironment(int newIp, ElectorProperties properties) {
       this.newIp = newIp;
       this.properties = properties;
     }
@@ -411,13 +448,13 @@ public class InstanceControllerTest {
       taskRegistrars.put(ip, taskRegistrar);
       instanceController.configureTasks(taskRegistrar);
       eventDispatcher.addPod(ip, instanceController);
+      discoveryClient.addInstances(serviceInstance);
 
       return ip;
     }
 
-    public void startPods(String... ips) {
-      Arrays.stream(ips).forEach(ip -> discoveryClient.addInstances(serviceInstances.get(ip)));
-      List<InstanceController> controllers = new ArrayList<>();
+    public Set<InstanceController> startPods(boolean expectActivation, String... ips) {
+      Set<InstanceController> controllers = new HashSet<>();
       Arrays.stream(ips)
           .forEach(
               ip -> {
@@ -426,16 +463,10 @@ public class InstanceControllerTest {
                 controller.initialize();
                 controllers.add(controller);
               });
-      await()
-          .atMost(properties.getHeartbeatTimeoutMillis() * 2L, TimeUnit.MILLISECONDS)
-          .until(
-              () ->
-                  controllers.stream()
-                      .allMatch(
-                          controller -> {
-                            InstanceInfo selfInfo = getInfo(controller);
-                            return selfInfo.isActive() || selfInfo.isSpare();
-                          }));
+      if (expectActivation) {
+        awaitActivation(controllers);
+      }
+      return controllers;
     }
 
     public void mutePod(String ip) {
@@ -452,6 +483,17 @@ public class InstanceControllerTest {
       eventDispatcher.removePod(ip);
       eventPublishers.remove(ip);
       serviceInstances.remove(ip);
+    }
+
+    public void awaitActivation(Set<InstanceController> controllers) {
+      await()
+          .atMost(3000, TimeUnit.MILLISECONDS)
+          .until(
+              () ->
+                  controllers.stream()
+                      .allMatch(
+                          controller ->
+                              getInfo(controller).inEitherState(STATE_ACTIVE, STATE_SPARE)));
     }
 
     public EventDispatcher getEventDispatcher() {

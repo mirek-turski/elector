@@ -346,19 +346,22 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
         > properties.getBallotTimeoutMillis();
 
     if (properties.getBallotType().equals(BallotType.TIMED) && ballotFinished) {
+      log.debug("Electing in timed ballot");
       elect();
     } else if (properties.getBallotType().equals(BallotType.QUORUM)) {
       if (ballots.size() + 1 >= properties.getPoolSize()) {
+        log.debug("Electing in quorum ballot");
         elect();
       } else if (ballotFinished) {
-        log.debug("Stale ballot, voting again...");
+        log.debug("Stale quorum ballot, voting again");
         vote();
       }
     } else if (properties.getBallotType().equals(BallotType.UNANIMOUS)) {
       if (ballots.size() == peers.size()) {
+        log.debug("Electing in unanimous ballot...");
         elect();
       } else if (ballotFinished) {
-        log.debug("Stale ballot, voting again...");
+        log.debug("Stale unanimous ballot, voting again...");
         vote();
       }
     }
