@@ -12,7 +12,6 @@ import static com.elector.Constant.STATE_SPARE;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -32,10 +31,10 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.validation.constraints.NotNull;
 import org.junit.jupiter.api.AfterEach;
@@ -51,6 +50,7 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlowDefinition;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.scheduling.config.ScheduledTask;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -70,18 +70,21 @@ public class InstanceControllerTest {
   private static InstanceInfo getInfo(InstanceController controller) {
     return (InstanceInfo) ReflectionTestUtils.getField(controller, "selfInfo");
   }
-
+  
   private TestEnvironment env;
-
+  
   @AfterEach
-  public void cleanUp() {
-
+  public void afterEachTest() {
+    if (env != null) {
+      env.clean();
+      env = null;
+    }
   }
 
   @Test
   public void testTimedBallot() {
     log.info("==================== Running testTimedBallot");
-    TestEnvironment env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.TIMED).build();
+    env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.TIMED).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
     log.info(">>>>>> Starting 1st instance");
@@ -90,7 +93,7 @@ public class InstanceControllerTest {
     assertTrue(Duration.between(start, Instant.now()).toMillis() > env.getProperties().getBallotTimeoutMillis());
     assertTrue(getInfo(controllers.stream().findFirst().get()).isActive());
     assertEquals(1, getInfo(controllers.stream().findFirst().get()).getOrder());
-    log.info(">>>>>> Starting 2nd instance");
+    log.info(">>>>>> Starting 2nd instance after {} millis", env.getProperties().getBallotTimeoutMillis());
     controllers = env.startPods(true, ip2);
     assertTrue(getInfo(controllers.stream().findFirst().get()).isActive());
     assertEquals(2, getInfo(controllers.stream().findFirst().get()).getOrder());
@@ -99,32 +102,43 @@ public class InstanceControllerTest {
   @Test
   public void testQuorumBallot() {
     log.info("==================== Running testQuorumBallot");
-    TestEnvironment env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.QUORUM).build();
+    env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.QUORUM).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
     log.info(">>>>>> Starting 1st instance");
-    Set<InstanceController> controllers = new HashSet<>();
-    controllers.addAll(env.startPods(false, ip1));
+    Set<InstanceController> controllers = new HashSet<>(env.startPods(false, ip1));
     await().timeout(env.getProperties().getBallotTimeoutMillis() * 2L, TimeUnit.MILLISECONDS);
     assertEquals(STATE_INTRODUCED, getInfo(controllers.stream().findFirst().get()).getState());
     assertEquals(0, getInfo(controllers.stream().findFirst().get()).getOrder());
     log.info(">>>>>> Starting 2nd instance");
     controllers.addAll(env.startPods(false, ip2));
     env.awaitActivation(controllers);
-
-    // TODO: assert order numbers of the two instances
+    assertWeightedOrder(getInfo(env.getController(ip1)), getInfo(env.getController(ip2)));
   }
 
   @Test
   public void testUnanimousBallot() {
     log.info("==================== Running testUnanimousBallot");
-    fail("testUnanimousBallot not implemented");
+    env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.UNANIMOUS).build();
+    String ip1 = env.addPod();
+    String ip2 = env.addPod();
+    String ip3 = env.addPod();
+    log.info(">>>>>> Starting two instances out of three discovered");
+    Set<InstanceController> controllers = new HashSet<>(env.startPods(false, ip1, ip2));
+    await().timeout(env.getProperties().getBallotTimeoutMillis() * 2L, TimeUnit.MILLISECONDS);
+    controllers.forEach(controller -> {
+      assertEquals(STATE_INTRODUCED, getInfo(controller).getState());
+      assertEquals(0, getInfo(controller).getOrder());
+    });
+    log.info(">>>>>> Starting 3nd instance");
+    controllers.addAll(env.startPods(false, ip3));
+    env.awaitActivation(controllers);
   }
 
   @Test
   public void testLeaderElection() {
     log.info("==================== Running testLeaderElection");
-    TestEnvironment env = TestEnvironment.builder().poolSize(1).build();
+    env = TestEnvironment.builder().poolSize(1).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
     String ip3 = env.addPod();
@@ -140,7 +154,7 @@ public class InstanceControllerTest {
         instances.stream().filter(InstanceInfo::isMinion).collect(Collectors.toList());
     assertEquals(1, leaders.size());
     assertEquals(2, minions.size());
-    log.info(">>>>>> Removing leader and triggering re-election");
+    log.info(">>>>>> Removing leader triggering re-election");
     env.deletePod(leaders.get(0).getHost());
     instances.clear();
     instances.addAll(minions);
@@ -152,6 +166,7 @@ public class InstanceControllerTest {
     assertEquals(1, leaders.size());
     assertEquals(1, minions.size());
     log.info(">>>>>> Leader resigns triggering re-election");
+    // Make sure the resigning leader does not get re-elected
     ReflectionTestUtils.setField(leaders.get(0), "weight", minions.get(0).getWeight() - 1);
     env.getController(leaders.get(0).getHost()).resign();
     await()
@@ -166,7 +181,7 @@ public class InstanceControllerTest {
   @Test
   public void testHighestOrderWithNoPeers() {
     log.info("==================== Running testHighestOrderWithNoPeers");
-    TestEnvironment env = TestEnvironment.builder().build();
+    env = TestEnvironment.builder().build();
     String ip = env.addPod();
     env.startPods(true, ip);
     ArgumentCaptor<InstanceReadyEvent> argumentCaptor =
@@ -181,7 +196,7 @@ public class InstanceControllerTest {
   @Test
   public void testStartTwoInstancesSimultaneously() {
     log.info("==================== Running testStartTwoInstancesSimultaneously");
-    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
+    env = TestEnvironment.builder().poolSize(2).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
     env.startPods(true, ip1, ip2);
@@ -200,21 +215,13 @@ public class InstanceControllerTest {
     assertEquals(STATE_ACTIVE, i0.getState());
     assertEquals(STATE_ACTIVE, i1.getState());
 
-    List<InstanceInfo> instances = List.of(i0, i1);
-
-    Optional<InstanceInfo> o1 =
-        instances.stream().filter(instance -> instance.getOrder() == 1).findFirst();
-    Optional<InstanceInfo> o2 =
-        instances.stream().filter(instance -> instance.getOrder() == 2).findFirst();
-    assertTrue(o1.isPresent());
-    assertTrue(o2.isPresent());
-    assertTrue(o1.get().getWeight() > o2.get().getWeight());
+    assertWeightedOrder(i0, i1);
   }
 
   @Test
   public void testSpareInstanceOnPoolExhausted() {
     log.info("==================== Running testSpareInstanceOnPoolExhausted");
-    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
+    env = TestEnvironment.builder().poolSize(2).build();
     String ip1 = env.addPod();
     String ip2 = env.addPod();
     env.startPods(true, ip1, ip2);
@@ -230,7 +237,7 @@ public class InstanceControllerTest {
   @Test
   public void testDeletedInstanceReplacedWithSpare() {
     log.info("==================== Running testDeletedInstanceReplacedWithSpare");
-    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
+    env = TestEnvironment.builder().poolSize(2).build();
     log.info(">>>>>> Starting up two instances simultaneously");
     String ip1 = env.addPod();
     String ip2 = env.addPod();
@@ -261,7 +268,7 @@ public class InstanceControllerTest {
   @Test
   public void testAbsentInstance() {
     log.info("==================== Running testAbsentInstance");
-    TestEnvironment env = TestEnvironment.builder().poolSize(2).build();
+    env = TestEnvironment.builder().poolSize(2).build();
     log.info(">>>>>> Starting up two instances simultaneously");
     String ip1 = env.addPod();
     String ip2 = env.addPod();
@@ -383,19 +390,12 @@ public class InstanceControllerTest {
   private void assertWeightedOrder(InstanceInfo...instances) {
     Set<InstanceInfo> weightedInstances =
         Arrays.stream(instances)
-            .sorted(Comparator.comparingLong(InstanceInfo::getOrder).reversed())
+            .sorted(Comparator.comparingLong(InstanceInfo::getWeight).reversed())
             .collect(Collectors.toCollection(LinkedHashSet::new));
-
-
-    int length = instances.length;
-    Optional<InstanceInfo> o1 =
-        instances.stream().filter(instance -> instance.getOrder() == 1).findFirst();
-    Optional<InstanceInfo> o2 =
-        instances.stream().filter(instance -> instance.getOrder() == 2).findFirst();
-    assertTrue(o1.isPresent());
-    assertTrue(o2.isPresent());
-    assertTrue(o1.get().getWeight() > o2.get().getWeight());
-
+    final AtomicInteger expectedOrder = new AtomicInteger(1);
+    weightedInstances.stream().forEach(instanceInfo -> {
+      assertEquals(expectedOrder.getAndIncrement(), instanceInfo.getOrder());
+    });
   }
 
   private static class TestEnvironment {
@@ -480,9 +480,16 @@ public class InstanceControllerTest {
     public void deletePod(String ip) {
       ReflectionTestUtils.setField(getController(ip), "discoveryClient", new DiscoveryClientStub());
       discoveryClient.removeInstance(serviceInstances.get(ip));
-      eventDispatcher.removePod(ip);
       eventPublishers.remove(ip);
       serviceInstances.remove(ip);
+      taskRegistrars.get(ip).getScheduledTasks().forEach(ScheduledTask::cancel);
+      taskRegistrars.remove(ip);
+      eventDispatcher.removePod(ip);
+    }
+    
+    public void clean() {
+      Set<String> ips = new HashSet<>(serviceInstances.keySet());
+      ips.forEach(this::deletePod);
     }
 
     public void awaitActivation(Set<InstanceController> controllers) {
