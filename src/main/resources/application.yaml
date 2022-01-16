@@ -13,10 +13,6 @@ spring:
     discovery:
       client:
         simple:
-          local:
-            instanceId: ${spring.application.name}#0
-            serviceId: ${spring.application.name}
-            host: 192.168.88.230
           instances:
             elector-demo:
               - instanceId: ${spring.application.name}#1

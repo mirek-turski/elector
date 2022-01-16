@@ -50,8 +50,6 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlowDefinition;
 import org.springframework.messaging.MessageChannel;
-import org.springframework.scheduling.config.ScheduledTask;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.test.util.ReflectionTestUtils;
 
 public class InstanceControllerTest {
@@ -404,7 +402,6 @@ public class InstanceControllerTest {
     private final DiscoveryClientStub discoveryClient = new DiscoveryClientStub();
     private final Map<String, DefaultServiceInstance> serviceInstances = new HashMap<>();
     private final Map<String, ApplicationEventPublisher> eventPublishers = new HashMap<>();
-    private final Map<String, ScheduledTaskRegistrar> taskRegistrars = new HashMap<>();
     private final ElectorProperties properties;
     private int newIp;
 
@@ -438,15 +435,12 @@ public class InstanceControllerTest {
       serviceInstance.setInstanceId(uuid);
       serviceInstance.setHost(ip);
       final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-      final ScheduledTaskRegistrar taskRegistrar = new ScheduledTaskRegistrar();
 
       final InstanceController instanceController =
           new InstanceController(
                   properties, selfInfo, discoveryClient, eventDispatcher, eventPublisher);
       serviceInstances.put(ip, serviceInstance);
       eventPublishers.put(ip, eventPublisher);
-      taskRegistrars.put(ip, taskRegistrar);
-      instanceController.configureTasks(taskRegistrar);
       eventDispatcher.addPod(ip, instanceController);
       discoveryClient.addInstances(serviceInstance);
 
@@ -459,7 +453,6 @@ public class InstanceControllerTest {
           .forEach(
               ip -> {
                 InstanceController controller = getController(ip);
-                taskRegistrars.get(ip).afterPropertiesSet();
                 controller.initialize();
                 controllers.add(controller);
               });
@@ -479,11 +472,10 @@ public class InstanceControllerTest {
 
     public void deletePod(String ip) {
       ReflectionTestUtils.setField(getController(ip), "discoveryClient", new DiscoveryClientStub());
+      getController(ip).deactivate();
       discoveryClient.removeInstance(serviceInstances.get(ip));
       eventPublishers.remove(ip);
       serviceInstances.remove(ip);
-      taskRegistrars.get(ip).getScheduledTasks().forEach(ScheduledTask::cancel);
-      taskRegistrars.remove(ip);
       eventDispatcher.removePod(ip);
     }
     
@@ -519,10 +511,6 @@ public class InstanceControllerTest {
       return this.eventPublishers;
     }
 
-    public Map<String, ScheduledTaskRegistrar> getTaskRegistrars() {
-      return this.taskRegistrars;
-    }
-
     public ElectorProperties getProperties() {
       return this.properties;
     }
@@ -535,7 +523,7 @@ public class InstanceControllerTest {
       private int newIp = 1;
       private int heartbeatIntervalMillis = 200;
       private int heartbeatTimeoutMillis = 500;
-      private int ballotTimeoutMillis = 200;
+      private int ballotTimeoutMillis = 500;
       private BallotType ballotType = BallotType.QUORUM;
       private int poolSize = 1;
 

@@ -37,40 +37,27 @@ public class ElectorAutoConfiguration {
   @ConditionalOnMissingBean
   public InstanceInfo selfInfo(@Nullable PodUtils podUtils, @Nullable InetUtils inet, ElectorProperties properties) {
 
-    InstanceInfo selfInfo;
     final Pod current = podUtils != null ? podUtils.currentPod().get() : null;
-    final String id =
-        current != null ? current.getMetadata().getUid() : UUID.randomUUID().toString();
+    final String id = current != null ? current.getMetadata().getUid() : UUID.randomUUID().toString();
     final long weight = (long) (System.currentTimeMillis() * Math.random());
 
+    String hostname = "127.0.0.1";
     if (current != null) {
-      selfInfo =
-          InstanceInfo.builder()
-              .id(id)
-              .weight(weight)
-              .host(current.getStatus().getPodIP())
-              .order(ORDER_UNASSIGNED)
-              .state(STATE_NEW)
-              .last(Instant.now())
-              .build();
-    } else {
-      String hostname =  "127.0.0.1";
-      if (properties.getHostname() != null && !properties.getHostname().isBlank()) {
-        hostname = properties.getHostname();
-      } else if (inet != null) {
-        hostname = inet.findFirstNonLoopbackHostInfo().getIpAddress();
-      }
-      selfInfo =
-          InstanceInfo.builder()
-              .id(id)
-              .weight((long) (System.currentTimeMillis() * Math.random()))
-              .host(hostname)
-              .order(ORDER_UNASSIGNED)
-              .state(STATE_NEW)
-              .last(Instant.now())
-              .build();
+      hostname = current.getStatus().getPodIP();
+    } else if (properties.getHostname() != null && !properties.getHostname().isBlank()) {
+      hostname = properties.getHostname();
+    } else if (inet != null) {
+      hostname = inet.findFirstNonLoopbackHostInfo().getIpAddress();
     }
-    return selfInfo;
+
+    return InstanceInfo.builder()
+        .id(id)
+        .weight(weight)
+        .host(hostname)
+        .order(ORDER_UNASSIGNED)
+        .state(STATE_NEW)
+        .last(Instant.now())
+        .build();
   }
 
   /**

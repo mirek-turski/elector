@@ -13,6 +13,7 @@ import static com.elector.Constant.STATE_ABSENT;
 import static com.elector.Constant.STATE_ACTIVE;
 import static com.elector.Constant.STATE_DISCOVERED;
 import static com.elector.Constant.STATE_INTRODUCED;
+import static com.elector.Constant.STATE_NEW;
 import static com.elector.Constant.STATE_SPARE;
 
 import com.elector.ElectorProperties.BallotType;
@@ -21,19 +22,20 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import javax.annotation.PreDestroy;
 import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,14 +48,12 @@ import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.handler.GenericHandler;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.support.MessageBuilder;
-import org.springframework.scheduling.annotation.SchedulingConfigurer;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
 /**
  * Manages instances of the service. The instances will be ordered starting from 0. Every new
  * instance will negotiate the highest available order number.
  */
-public class InstanceController implements GenericHandler<ElectorEvent>, SchedulingConfigurer {
+public class InstanceController implements GenericHandler<ElectorEvent> {
 
   private static final Logger log = LoggerFactory.getLogger(InstanceController.class);
 
@@ -64,10 +64,12 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
   private final ApplicationEventPublisher eventPublisher;
   // Key = voter id
   private final Map<String, ElectorEvent> ballots = new ConcurrentHashMap<>();
-  // Key = pod id
+  // Key = instance id
   private final Map<String, InstanceInfo> peers = new ConcurrentHashMap<>();
   private volatile Instant voteInitiationTime;
   private final CountDownLatch initializerLatch = new CountDownLatch(1);
+  private final ScheduledExecutorService heartbeatScheduler = Executors.newSingleThreadScheduledExecutor();
+  private final ScheduledExecutorService ballotScheduler = Executors.newSingleThreadScheduledExecutor();
 
   public InstanceController(
       ElectorProperties properties,
@@ -97,14 +99,25 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
       setInstanceReady(ORDER_HIGHEST, STATE_ACTIVE);
     } else {
       if (log.isDebugEnabled()) {
-        log.debug(
-            "Discovered peers: {}",
-            Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
+        log.debug("Discovered peers: {}", Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
       }
       selfInfo.setState(STATE_INTRODUCED);
       vote();
     }
+    heartbeatScheduler.scheduleAtFixedRate(
+        this::heartbeat, 0L, properties.getHeartbeatIntervalMillis(), TimeUnit.MILLISECONDS);
     initializerLatch.countDown();
+  }
+
+  @PreDestroy
+  public void deactivate() {
+    heartbeatScheduler.shutdownNow();
+    ballotScheduler.shutdownNow();
+    peers.clear();
+    ballots.clear();
+    voteInitiationTime = null;
+    selfInfo.setState(STATE_NEW);
+    selfInfo.setOrder(ORDER_UNASSIGNED);
   }
 
   @Override
@@ -132,7 +145,11 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
             .build();
     sender.setLast(Instant.now());
     if (peers.containsKey(sender.getId()) && peers.get(sender.getId()).inState(STATE_ABSENT)) {
-      log.info("Instance {} [{}] is back online in {} state", sender.getId(), sender.getHost(), sender.getState());
+      log.info(
+          "Instance {} [{}] is back online in {} state",
+          sender.getId(),
+          sender.getHost(),
+          sender.getState());
     }
     peers.put(sender.getId(), sender);
 
@@ -157,7 +174,8 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
       if (eventProperties != null && eventProperties.containsKey(PROPERTY_MESSAGE_ID)) {
         String messageId = eventProperties.get(PROPERTY_MESSAGE_ID);
         eventProperties.remove(PROPERTY_MESSAGE_ID);
-        eventPublisher.publishEvent(new InstanceMessageEvent(this, sender, messageId, eventProperties));
+        eventPublisher.publishEvent(
+            new InstanceMessageEvent(this, sender, messageId, eventProperties));
       } else {
         log.warn("Invalid event format {}. Missing {} property.", event, PROPERTY_MESSAGE_ID);
       }
@@ -167,7 +185,7 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
     return null;
   }
 
-  /** Method scheduled by {@link InstanceController#configureTasks(ScheduledTaskRegistrar)} */
+  /** Method scheduled by {@link InstanceController#heartbeatScheduler} */
   public void heartbeat() {
     // Make sure we don't send anything until we are fully initialized.
     // Note that initialization occurs on application context refresh,
@@ -176,26 +194,8 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
       return;
     }
     checkPeers();
-    checkBallots();
+    //    checkBallots();
     notifyPeers(prepareHeartbeatEvent(), peers.values());
-  }
-
-  @Override
-  public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
-    // Use that implementation of scheduling instead of @Scheduled annotation
-    // for better configurability.
-    taskRegistrar.setScheduler(Executors.newSingleThreadScheduledExecutor());
-    taskRegistrar.addTriggerTask(
-        this::heartbeat,
-        context -> {
-          Optional<Date> lastCompletionTime = Optional.ofNullable(context.lastCompletionTime());
-          Instant nextExecutionTime =
-              lastCompletionTime
-                  .orElseGet(Date::new)
-                  .toInstant()
-                  .plusMillis(properties.getHeartbeatIntervalMillis());
-          return Date.from(nextExecutionTime);
-        });
   }
 
   /**
@@ -282,7 +282,8 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
                         > properties.getHeartbeatTimeoutMillis())
             .collect(Collectors.toList());
     if (!absentPeers.isEmpty()) {
-      // Firstly, confirm that the absent peer is not discoverable (i.e. disappeared from Kubernetes).
+      // Firstly, confirm that the absent peer is not discoverable (i.e. disappeared from
+      // Kubernetes).
       final Map<String, InstanceInfo> discoveredPeers = discoverPeers();
       absentPeers.forEach(
           absentPeer -> {
@@ -318,6 +319,8 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
     ballots.clear();
     voteInitiationTime = Instant.now();
     notifyPeers(voteEvent, peers.values());
+    ballotScheduler.schedule(
+        this::checkBallots, properties.getBallotTimeoutMillis(), TimeUnit.MILLISECONDS);
   }
 
   /**
@@ -336,23 +339,15 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
 
   /** Check if we got all votes and we have consensus */
   private void checkBallots() {
-
-    // No vote initiated by this instance
-    if (voteInitiationTime == null) {
-      return;
-    }
-
-    final boolean ballotFinished = Duration.between(voteInitiationTime, Instant.now()).toMillis()
-        > properties.getBallotTimeoutMillis();
-
-    if (properties.getBallotType().equals(BallotType.TIMED) && ballotFinished) {
+    if (properties.getBallotType().equals(BallotType.TIMED)) {
       log.debug("Electing in timed ballot");
       elect();
     } else if (properties.getBallotType().equals(BallotType.QUORUM)) {
+      // Plus one for self-vote
       if (ballots.size() + 1 >= properties.getPoolSize()) {
         log.debug("Electing in quorum ballot");
         elect();
-      } else if (ballotFinished) {
+      } else {
         log.debug("Stale quorum ballot, voting again");
         vote();
       }
@@ -360,7 +355,7 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
       if (ballots.size() == peers.size()) {
         log.debug("Electing in unanimous ballot...");
         elect();
-      } else if (ballotFinished) {
+      } else {
         log.debug("Stale unanimous ballot, voting again...");
         vote();
       }
@@ -385,7 +380,7 @@ public class InstanceController implements GenericHandler<ElectorEvent>, Schedul
         log.debug("Pool of instances exhausted, marking this instance spare");
         setInstanceReady(ORDER_UNASSIGNED, STATE_SPARE);
       } else {
-        log.debug("Consensus reached, activating this instance with order #{}", updatedSelfOrder);
+        log.debug("Ballot finished, activating this instance with order #{}", updatedSelfOrder);
         setInstanceReady(updatedSelfOrder, STATE_ACTIVE);
       }
     } else {
