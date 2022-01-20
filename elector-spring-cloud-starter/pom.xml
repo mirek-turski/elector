@@ -14,39 +14,6 @@
     <artifactId>elector-spring-cloud-starter</artifactId>
     <name>elector-spring-cloud-starter</name>
     <description>Leadership election based on Spring Boot Cloud Kubernetes service discovery</description>
-    <url>https://github.com/mirek-turski/elector</url>
-
-    <developers>
-        <developer>
-            <name>Mirosław Turski</name>
-            <url>https://github.com/mirek-turski</url>
-        </developer>
-    </developers>
-
-    <licenses>
-        <license>
-            <name>Apache License 2.0</name>
-            <url>https://github.com/mirek-turski/elector/blob/main/LICENSE</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <scm>
-        <connection>scm:git:git://github.com/mirek-turski/elector.git</connection>
-        <developerConnection>scm:git:git@github.com:mirek-turski/elector.git</developerConnection>
-        <url>https://github.com/mirek-turski/elector</url>
-    </scm>
-
-    <!--    <distributionManagement>-->
-    <!--        <snapshotRepository>-->
-    <!--            <id>ossrh</id>-->
-    <!--            <url>https://oss.sonatype.org/content/repositories/snapshots</url>-->
-    <!--        </snapshotRepository>-->
-    <!--        <repository>-->
-    <!--            <id>ossrh</id>-->
-    <!--            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
-    <!--        </repository>-->
-    <!--    </distributionManagement>-->
 
     <dependencies>
         <dependency>

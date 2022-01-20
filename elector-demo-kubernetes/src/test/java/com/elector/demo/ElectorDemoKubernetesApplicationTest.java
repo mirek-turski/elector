@@ -12,6 +12,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest(
     properties = {
       "server.port=0",
+			"spring.cloud.elector.enabled=true",
+			"spring.cloud.elector.pool-size=1",
+			"spring.cloud.elector.ballot-timeout-millis=300",
+			"spring.cloud.elector.ballot-type=quorum",
       "spring.cloud.kubernetes.enabled=false",
       "spring.cloud.kubernetes.discovery.enabled=false"
     })
