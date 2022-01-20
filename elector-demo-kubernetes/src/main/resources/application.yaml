@@ -3,24 +3,10 @@ server:
 
 spring:
   application:
-    name: elector-demo
+    name: elector-demo-kubernetes
   cloud:
-#    inetutils:
-#      useOnlySiteLocalInterfaces: true
-#      preferred-networks: 192\.168\.88\..*
     config:
       enabled: false
-    discovery:
-      client:
-        simple:
-          instances:
-            elector-demo:
-              - instanceId: ${spring.application.name}#1
-                host: 192.168.123.1
-              - instanceId: ${spring.application.name}#2
-                host: 192.168.123.2
-              - instanceId: ${spring.application.name}#3
-                host: 192.168.123.3
     elector:
       enabled: true
       service-name: ${spring.application.name}
@@ -30,12 +16,11 @@ spring:
       heartbeat-timeout-millis: 3000
       ballot-timeout-millis: 1000
       poolSize: 1
-      # TIMED, QUORUM, UNANIMOUS
       ballot-type: QUORUM
     kubernetes:
-      enabled: false
+      enabled: true
       discovery:
-        enabled: false
+        enabled: true
   jackson:
     serialization.INDENT_OUTPUT: true
 

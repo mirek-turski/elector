@@ -4,9 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication(scanBasePackages = {"com.elector"})
-public class ElectorDemoApplication {
+public class ElectorDemoKubernetesApplication {
 
   public static void main(String[] args) {
-    SpringApplication.run(ElectorDemoApplication.class, args);
+    SpringApplication.run(ElectorDemoKubernetesApplication.class, args);
   }
 }

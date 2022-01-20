@@ -8,9 +8,11 @@ import io.fabric8.kubernetes.api.model.Pod;
 import java.time.Instant;
 import java.util.UUID;
 import javax.annotation.Nullable;
-import org.springframework.boot.actuate.info.InfoContributor;
+import org.springframework.boot.actuate.autoconfigure.health.ConditionalOnEnabledHealthIndicator;
+import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
@@ -33,31 +35,65 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ConditionalOnProperty(value = "spring.cloud.elector.enabled", matchIfMissing = true)
 public class ElectorAutoConfiguration {
 
-  @Bean
-  @ConditionalOnMissingBean
-  public InstanceInfo selfInfo(@Nullable PodUtils podUtils, @Nullable InetUtils inet, ElectorProperties properties) {
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(PodUtils.class)
+  protected static class KubernetesConfiguration {
 
-    final Pod current = podUtils != null ? podUtils.currentPod().get() : null;
-    final String id = current != null ? current.getMetadata().getUid() : UUID.randomUUID().toString();
-    final long weight = (long) (System.currentTimeMillis() * Math.random());
+    @Bean
+    @ConditionalOnMissingBean
+    public InstanceInfo selfInfo(@Nullable PodUtils podUtils, @Nullable InetUtils inet, ElectorProperties properties) {
 
-    String hostname = "127.0.0.1";
-    if (current != null) {
-      hostname = current.getStatus().getPodIP();
-    } else if (properties.getHostname() != null && !properties.getHostname().isBlank()) {
-      hostname = properties.getHostname();
-    } else if (inet != null) {
-      hostname = inet.findFirstNonLoopbackHostInfo().getIpAddress();
+      final Pod current = podUtils != null ? podUtils.currentPod().get() : null;
+      final String id = current != null ? current.getMetadata().getUid() : UUID.randomUUID().toString();
+      final long weight = (long) (System.currentTimeMillis() * Math.random());
+
+      String hostname = "127.0.0.1";
+      if (current != null) {
+        hostname = current.getStatus().getPodIP();
+      } else if (properties.getHostname() != null && !properties.getHostname().isBlank()) {
+        hostname = properties.getHostname();
+      } else if (inet != null) {
+        hostname = inet.findFirstNonLoopbackHostInfo().getIpAddress();
+      }
+
+      return InstanceInfo.builder()
+          .id(id)
+          .weight(weight)
+          .host(hostname)
+          .order(ORDER_UNASSIGNED)
+          .state(STATE_NEW)
+          .last(Instant.now())
+          .build();
     }
+  }
 
-    return InstanceInfo.builder()
-        .id(id)
-        .weight(weight)
-        .host(hostname)
-        .order(ORDER_UNASSIGNED)
-        .state(STATE_NEW)
-        .last(Instant.now())
-        .build();
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnMissingClass("org.springframework.cloud.kubernetes.PodUtils")
+  protected static class SimpleConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    public InstanceInfo selfInfo(@Nullable InetUtils inet, ElectorProperties properties) {
+
+      final String id = UUID.randomUUID().toString();
+      final long weight = (long) (System.currentTimeMillis() * Math.random());
+
+      String hostname = "127.0.0.1";
+      if (properties.getHostname() != null && !properties.getHostname().isBlank()) {
+        hostname = properties.getHostname();
+      } else if (inet != null) {
+        hostname = inet.findFirstNonLoopbackHostInfo().getIpAddress();
+      }
+
+      return InstanceInfo.builder()
+          .id(id)
+          .weight(weight)
+          .host(hostname)
+          .order(ORDER_UNASSIGNED)
+          .state(STATE_NEW)
+          .last(Instant.now())
+          .build();
+    }
   }
 
   /**
@@ -99,10 +135,16 @@ public class ElectorAutoConfiguration {
         properties, selfInfo, discoveryClient, outUdpAdapter, eventPublisher);
   }
 
-  @Bean
-  @ConditionalOnClass(InfoContributor.class)
-  public InstanceInfoContributor instanceInfoContributor(
-      InstanceInfo selfInfo, InstanceController instanceController) {
-    return new InstanceInfoContributor(selfInfo, instanceController);
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(HealthIndicator.class)
+  protected static class InstancesActuatorConfiguration {
+
+    @Bean
+    @ConditionalOnEnabledHealthIndicator("instances")
+    public InstanceInfoContributor instanceInfoContributor(
+        InstanceInfo selfInfo, InstanceController instanceController) {
+      return new InstanceInfoContributor(selfInfo, instanceController);
+    }
   }
+
 }

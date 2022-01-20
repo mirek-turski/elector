@@ -54,7 +54,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 public class InstanceControllerTest {
 
-  private static final Logger log = LogUtils.createConsoleLogger("com.elector", Level.TRACE);
+  private static final Logger log = LogUtils.createConsoleLogger("com.elector", Level.DEBUG);
 
   private final ElectorProperties properties = new ElectorProperties();
   final InstanceController controller = new InstanceController(properties, null, null, null, null);
