@@ -44,7 +44,7 @@ public class ElectorAutoConfiguration {
     public InstanceInfo selfInfo(@Nullable PodUtils podUtils, @Nullable InetUtils inet, ElectorProperties properties) {
 
       final Pod current = podUtils != null ? podUtils.currentPod().get() : null;
-      final String id = current != null ? current.getMetadata().getUid() : UUID.randomUUID().toString();
+      final String id = current != null ? current.getMetadata().getUid() : properties.getInstanceId();
       final long weight = (long) (System.currentTimeMillis() * Math.random());
 
       String hostname = "127.0.0.1";
@@ -57,7 +57,7 @@ public class ElectorAutoConfiguration {
       }
 
       return InstanceInfo.builder()
-          .id(id)
+          .id(id != null ? id : UUID.randomUUID().toString())
           .weight(weight)
           .host(hostname)
           .order(ORDER_UNASSIGNED)
@@ -75,7 +75,7 @@ public class ElectorAutoConfiguration {
     @ConditionalOnMissingBean
     public InstanceInfo selfInfo(@Nullable InetUtils inet, ElectorProperties properties) {
 
-      final String id = UUID.randomUUID().toString();
+      final String id = properties.getInstanceId() != null ? properties.getInstanceId() : UUID.randomUUID().toString();
       final long weight = (long) (System.currentTimeMillis() * Math.random());
 
       String hostname = "127.0.0.1";
@@ -104,7 +104,7 @@ public class ElectorAutoConfiguration {
    * @return The flow
    */
   @Bean
-  public IntegrationFlow inUdpAdapter(
+  public IntegrationFlow electorInUdpAdapter(
       final InstanceController controller, final ElectorProperties properties) {
     return IntegrationFlows.from(Udp.inboundAdapter(properties.getListenerPort()))
         .transform(Transformers.fromJson(ElectorEvent.class))
@@ -118,10 +118,8 @@ public class ElectorAutoConfiguration {
    * @return The flow
    */
   @Bean
-  public IntegrationFlow outUdpAdapter() {
-    return f ->
-        f.transform(Transformers.toJson())
-            .handle(Udp.outboundAdapter(m -> m.getHeaders().get(HEADER_TARGET)));
+  public IntegrationFlow electorOutUdpAdapter() {
+    return f -> f.transform(Transformers.toJson()).handle(Udp.outboundAdapter(m -> m.getHeaders().get(HEADER_TARGET)));
   }
 
   @Bean
@@ -129,10 +127,9 @@ public class ElectorAutoConfiguration {
       ElectorProperties properties,
       InstanceInfo selfInfo,
       DiscoveryClient discoveryClient,
-      IntegrationFlow outUdpAdapter,
+      IntegrationFlow electorOutUdpAdapter,
       ApplicationEventPublisher eventPublisher) {
-    return new InstanceController(
-        properties, selfInfo, discoveryClient, outUdpAdapter, eventPublisher);
+    return new InstanceController(properties, selfInfo, discoveryClient, electorOutUdpAdapter, eventPublisher);
   }
 
   @Configuration(proxyBeanMethods = false)

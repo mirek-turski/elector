@@ -39,6 +39,7 @@ import javax.annotation.PreDestroy;
 import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.ApplicationEventPublisher;
@@ -75,7 +76,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
       ElectorProperties properties,
       InstanceInfo selfInfo,
       DiscoveryClient discoveryClient,
-      IntegrationFlow outUdpAdapter,
+      @Qualifier("electorOutUdpAdapter") IntegrationFlow outUdpAdapter,
       ApplicationEventPublisher eventPublisher) {
     this.properties = properties;
     this.selfInfo = selfInfo;

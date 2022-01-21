@@ -15,7 +15,8 @@ import org.springframework.boot.test.context.SpringBootTest;
       "spring.cloud.elector.enabled=true",
       "spring.cloud.elector.pool-size=1",
 			"spring.cloud.elector.ballot-timeout-millis=300",
-      "spring.cloud.elector.ballot-type=quorum"
+      "spring.cloud.elector.ballot-type=quorum",
+			"logging.level.com.elector=debug",
     })
 class ElectorDemoSimpleApplicationTest {
 

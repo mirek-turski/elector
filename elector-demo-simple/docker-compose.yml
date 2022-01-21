@@ -1,0 +1,42 @@
+version: "3.9"
+services:
+  elector-demo-primo:
+    hostname: "elector-demo-primo"
+    image: "elector-demo-simple"
+    ports:
+      - "8081:8080"
+    env_file:
+      - elector-demo-simple.env
+    environment:
+      SPRING_CLOUD_ELECTOR_INSTANCE_ID: "8832fea7-60b0-400a-95b6-828968a907d9"
+      SPRING_CLOUD_ELECTOR_HOSTNAME: "elector-demo-primo"
+  elector-demo-secundo:
+    hostname: "elector-demo-secundo"
+    image: "elector-demo-simple"
+    ports:
+      - "8082:8080"
+    env_file:
+      - elector-demo-simple.env
+    environment:
+      SPRING_CLOUD_ELECTOR_INSTANCE_ID: "4707bc12-d32f-4aef-93ce-4f9663711ae8"
+      SPRING_CLOUD_ELECTOR_HOSTNAME: "elector-demo-secundo"
+  elector-demo-tertio:
+    hostname: "elector-demo-tertio"
+    image: "elector-demo-simple"
+    ports:
+      - "8083:8080"
+    env_file:
+      - elector-demo-simple.env
+    environment:
+      SPRING_CLOUD_ELECTOR_INSTANCE_ID: "c3b1ef50-7007-470a-b544-553112aa645d"
+      SPRING_CLOUD_ELECTOR_HOSTNAME: "elector-demo-tertio"
+  elector-demo-quarto:
+    hostname: "elector-demo-quarto"
+    image: "elector-demo-simple"
+    ports:
+      - "8084:8080"
+    env_file:
+      - elector-demo-simple.env
+    environment:
+      SPRING_CLOUD_ELECTOR_INSTANCE_ID: "fcc18ce2-5726-4ab9-adf5-161ca58a284d"
+      SPRING_CLOUD_ELECTOR_HOSTNAME: "elector-demo-quarto"

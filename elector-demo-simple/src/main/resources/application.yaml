@@ -1,13 +1,7 @@
-server:
-  port : 8085
-
 spring:
   application:
     name: elector-demo-simple
   cloud:
-#    inetutils:
-#      useOnlySiteLocalInterfaces: true
-#      preferred-networks: 192\.168\.88\..*
     config:
       enabled: false
     discovery:
@@ -15,16 +9,17 @@ spring:
         simple:
           instances:
             elector-demo-simple:
-              - instanceId: ${spring.application.name}#1
-                host: 192.168.123.1
-              - instanceId: ${spring.application.name}#2
-                host: 192.168.123.2
-              - instanceId: ${spring.application.name}#3
-                host: 192.168.123.3
+              - instanceId: 8832fea7-60b0-400a-95b6-828968a907d9
+                host: ${PEER_A_HOSTNAME:10.0.0.1}
+              - instanceId: 4707bc12-d32f-4aef-93ce-4f9663711ae8
+                host: ${PEER_B_HOSTNAME:10.0.0.2}
+              - instanceId: c3b1ef50-7007-470a-b544-553112aa645d
+                host: ${PEER_C_HOSTNAME:10.0.0.3}
+              - instanceId: fcc18ce2-5726-4ab9-adf5-161ca58a284d
+                host: ${PEER_D_HOSTNAME:10.0.0.4}
     elector:
       enabled: true
       service-name: ${spring.application.name}
-#      hostname: 192.168.88.230
       listener-port: 12321
       heartbeat-interval-millis: 1000
       heartbeat-timeout-millis: 3000

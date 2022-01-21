@@ -1,5 +1,6 @@
 package com.elector;
 
+import javax.annotation.Nullable;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
@@ -48,7 +49,11 @@ public class ElectorProperties {
   @Max(65535)
   private int listenerPort = 12321;
 
+  @Nullable
   private String hostname;
+
+  @Nullable
+  private String instanceId;
 
   @Min(100)
   private int heartbeatIntervalMillis = 1000;
@@ -77,8 +82,12 @@ public class ElectorProperties {
     return this.listenerPort;
   }
 
-  public String getHostname() {
+  public @Nullable String getHostname() {
     return this.hostname;
+  }
+
+  public @Nullable String getInstanceId() {
+    return this.instanceId;
   }
 
   public @Min(100) int getHeartbeatIntervalMillis() {
@@ -113,8 +122,12 @@ public class ElectorProperties {
     this.listenerPort = listenerPort;
   }
 
-  public void setHostname(String hostname) {
+  public void setHostname(@Nullable String hostname) {
     this.hostname = hostname;
+  }
+
+  public void setInstanceId(@Nullable String instanceId) {
+    this.instanceId = instanceId;
   }
 
   public void setHeartbeatIntervalMillis(@Min(100) int heartbeatIntervalMillis) {
