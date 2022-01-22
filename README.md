@@ -32,3 +32,7 @@ cd elector-demo-kubernetes
 mvn spring-boot:build-image -Dspring-boot.build-image.imageName=elector-demo-kubernetes
 docker run -e "SPRING_CLOUD_KUBERNETES_ENABLED=false" -p 8080:8080 -t --name elector-demo-kubernetes elector-demo-kubernetes
 ```
+
+## Acknowledgments
+
+This library was inspired by [democracy project](https://www.npmjs.com/package/democracy).
