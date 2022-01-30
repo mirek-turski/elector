@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: elector-demo-consul
+  cloud:
+    config:
+      enabled: false
+    consul:
+#      host: localhost
+#      port: 8500
+      discovery:
+        enabled: true
+        service-name: ${spring.application.name}
+        instance-id: ${spring.application.name}-${random.uuid}
+    elector:
+      enabled: true
+      service-name: ${spring.cloud.consul.discovery.service-name}
+      listener-port: 12321
+      heartbeat-interval-millis: 1000
+      heartbeat-timeout-millis: 3000
+      ballot-timeout-millis: 1000
+      pool-size: 1
+      ballot-type: QUORUM
+  jackson:
+    serialization.INDENT_OUTPUT: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    metrics:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    root: ERROR
+    com.elector: DEBUG

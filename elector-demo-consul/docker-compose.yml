@@ -1,0 +1,20 @@
+version: '3.9'
+services:
+  consul:
+    image: consul
+    ports:
+      - '8500:8500'
+  elector-demo-consul:
+    image: elector-demo-consul
+    ports:
+      - '8081-8083:8080'
+    depends_on:
+      - consul
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+#      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_ELECTOR_BALLOT_TIMEOUT_MILLIS: 500
+      SPRING_CLOUD_ELECTOR_POOL_SIZE: 3
+    deploy:
+      mode: replicated
+      replicas: 3

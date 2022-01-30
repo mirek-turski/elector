@@ -105,8 +105,9 @@
 
     <modules>
         <module>elector-spring-cloud-starter</module>
-        <module>elector-demo-kubernetes</module>
         <module>elector-demo-simple</module>
+        <module>elector-demo-kubernetes</module>
+        <module>elector-demo-consul</module>
     </modules>
 
 </project>

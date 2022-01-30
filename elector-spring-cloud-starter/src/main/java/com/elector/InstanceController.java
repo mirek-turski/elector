@@ -188,14 +188,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
 
   /** Method scheduled by {@link InstanceController#heartbeatScheduler} */
   public void heartbeat() {
-    // Make sure we don't send anything until we are fully initialized.
-    // Note that initialization occurs on application context refresh,
-    // but this scheduler may be triggered earlier depending on speed od application startup.
-    if (initializerLatch.getCount() > 0) {
-      return;
-    }
     checkPeers();
-    //    checkBallots();
     notifyPeers(prepareHeartbeatEvent(), peers.values());
   }
 
@@ -424,8 +417,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
                           MessageBuilder.withPayload(event)
                               .setHeader(
                                   HEADER_TARGET,
-                                  String.format(
-                                      "udp://%s:%d", peer.getHost(), properties.getListenerPort()))
+                                  String.format("udp://%s:%d", peer.getHost(), properties.getListenerPort()))
                               .build());
             } catch (Exception e) {
               log.error("Failed to send event", e);

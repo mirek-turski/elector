@@ -45,15 +45,15 @@ public class ElectorProperties {
   @Value("${spring.application.name}")
   private String serviceName;
 
-  @Min(1)
-  @Max(65535)
-  private int listenerPort = 12321;
+  @Nullable
+  private String instanceId;
 
   @Nullable
   private String hostname;
 
-  @Nullable
-  private String instanceId;
+  @Min(1)
+  @Max(65535)
+  private int listenerPort = 12321;
 
   @Min(100)
   private int heartbeatIntervalMillis = 1000;
@@ -78,16 +78,16 @@ public class ElectorProperties {
     return this.serviceName;
   }
 
-  public @Min(1) @Max(65535) int getListenerPort() {
-    return this.listenerPort;
+  public @Nullable String getInstanceId() {
+    return this.instanceId;
   }
 
   public @Nullable String getHostname() {
     return this.hostname;
   }
 
-  public @Nullable String getInstanceId() {
-    return this.instanceId;
+  public @Min(1) @Max(65535) int getListenerPort() {
+    return this.listenerPort;
   }
 
   public @Min(100) int getHeartbeatIntervalMillis() {
@@ -118,16 +118,16 @@ public class ElectorProperties {
     this.serviceName = serviceName;
   }
 
-  public void setListenerPort(@Min(1) @Max(65535) int listenerPort) {
-    this.listenerPort = listenerPort;
+  public void setInstanceId(@Nullable String instanceId) {
+    this.instanceId = instanceId;
   }
 
   public void setHostname(@Nullable String hostname) {
     this.hostname = hostname;
   }
 
-  public void setInstanceId(@Nullable String instanceId) {
-    this.instanceId = instanceId;
+  public void setListenerPort(@Min(1) @Max(65535) int listenerPort) {
+    this.listenerPort = listenerPort;
   }
 
   public void setHeartbeatIntervalMillis(@Min(100) int heartbeatIntervalMillis) {
@@ -155,10 +155,12 @@ public class ElectorProperties {
         + this.isEnabled()
         + ", serviceName="
         + this.getServiceName()
-        + ", listenerPort="
-        + this.getListenerPort()
+        + ", instanceId="
+        + this.getInstanceId()
         + ", hostname="
         + this.getHostname()
+        + ", listenerPort="
+        + this.getListenerPort()
         + ", heartbeatIntervalMillis="
         + this.getHeartbeatIntervalMillis()
         + ", heartbeatTimeoutMillis="
