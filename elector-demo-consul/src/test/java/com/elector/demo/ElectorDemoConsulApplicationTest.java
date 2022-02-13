@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
     properties = {
       "server.port=0",
       "spring.cloud.elector.enabled=true",
+      "spring.cloud.elector.instance-id=test",
       "spring.cloud.elector.pool-size=1",
       "spring.cloud.elector.ballot-timeout-millis=300",
       "spring.cloud.elector.ballot-type=quorum",

@@ -11,7 +11,6 @@ import static com.elector.Constant.PROPERTY_MESSAGE_ID;
 import static com.elector.Constant.PROPERTY_ORDER;
 import static com.elector.Constant.STATE_ABSENT;
 import static com.elector.Constant.STATE_ACTIVE;
-import static com.elector.Constant.STATE_DISCOVERED;
 import static com.elector.Constant.STATE_INTRODUCED;
 import static com.elector.Constant.STATE_NEW;
 import static com.elector.Constant.STATE_SPARE;
@@ -21,7 +20,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,16 +30,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.annotation.PreDestroy;
 import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
@@ -51,7 +45,7 @@ import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.support.MessageBuilder;
 
 /**
- * Manages instances of the service. The instances will be ordered starting from 0. Every new
+ * Handles communication between instances of the service. The instances will be ordered starting from 0. Every new
  * instance will negotiate the highest available order number.
  */
 public class InstanceController implements GenericHandler<ElectorEvent> {
@@ -59,14 +53,11 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   private static final Logger log = LoggerFactory.getLogger(InstanceController.class);
 
   private final ElectorProperties properties;
-  private final InstanceInfo selfInfo;
-  private final DiscoveryClient discoveryClient;
+  private final InstanceRegistry registry;
   private final IntegrationFlow outUdpAdapter;
   private final ApplicationEventPublisher eventPublisher;
   // Key = voter id
   private final Map<String, ElectorEvent> ballots = new ConcurrentHashMap<>();
-  // Key = instance id
-  private final Map<String, InstanceInfo> peers = new ConcurrentHashMap<>();
   private volatile Instant voteInitiationTime;
   private final CountDownLatch initializerLatch = new CountDownLatch(1);
   private final ScheduledExecutorService heartbeatScheduler = Executors.newSingleThreadScheduledExecutor();
@@ -74,35 +65,30 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
 
   public InstanceController(
       ElectorProperties properties,
-      InstanceInfo selfInfo,
-      DiscoveryClient discoveryClient,
+      InstanceRegistry registry,
       @Qualifier("electorOutUdpAdapter") IntegrationFlow outUdpAdapter,
       ApplicationEventPublisher eventPublisher) {
     this.properties = properties;
-    this.selfInfo = selfInfo;
-    this.discoveryClient = discoveryClient;
+    this.registry = registry;
     this.outUdpAdapter = outUdpAdapter;
     this.eventPublisher = eventPublisher;
-  }
-
-  public Map<String, InstanceInfo> getPeers() {
-    return this.peers;
   }
 
   /** Initiates peer management after application context gets refreshed */
   @EventListener(ContextRefreshedEvent.class)
   public void initialize() {
-    Map<String, InstanceInfo> discoveredPeers = discoverPeers();
-    peers.clear();
-    peers.putAll(discoveredPeers);
-    if (peers.isEmpty()) {
+    Map<String, InstanceInfo> discoveredPeers = registry.discoverPeers();
+    registry.getPeers().clear();
+    registry.getPeers().putAll(discoveredPeers);
+    if (registry.getPeers().isEmpty()) {
       // No peers, so we immediately usurp the highest order
+      log.debug("No peer instances discovered. Claiming the highest order number.");
       setInstanceReady(ORDER_HIGHEST, STATE_ACTIVE);
     } else {
       if (log.isDebugEnabled()) {
         log.debug("Discovered peers: {}", Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
       }
-      selfInfo.setState(STATE_INTRODUCED);
+      registry.getSelfInfo().setState(STATE_INTRODUCED);
       vote();
     }
     heartbeatScheduler.scheduleAtFixedRate(
@@ -114,11 +100,11 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   public void deactivate() {
     heartbeatScheduler.shutdownNow();
     ballotScheduler.shutdownNow();
-    peers.clear();
+    registry.getPeers().clear();
     ballots.clear();
     voteInitiationTime = null;
-    selfInfo.setState(STATE_NEW);
-    selfInfo.setOrder(ORDER_UNASSIGNED);
+    registry.getSelfInfo().setState(STATE_NEW);
+    registry.getSelfInfo().setOrder(ORDER_UNASSIGNED);
   }
 
   @Override
@@ -145,26 +131,26 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
             .weight(event.getWeight())
             .build();
     sender.setLast(Instant.now());
-    if (peers.containsKey(sender.getId()) && peers.get(sender.getId()).inState(STATE_ABSENT)) {
+    if (registry.getPeers().containsKey(sender.getId()) && registry.getPeers().get(sender.getId()).inState(STATE_ABSENT)) {
       log.info(
           "Instance {} [{}] is back online in {} state",
           sender.getId(),
           sender.getHost(),
           sender.getState());
     }
-    peers.put(sender.getId(), sender);
+    registry.getPeers().put(sender.getId(), sender);
 
     if (EVENT_VOTE.equals(event.getEvent())) {
       final String candidateId = getEventProperty(event, PROPERTY_CANDIDATE);
-      if (candidateId.equals(selfInfo.getId())) {
+      if (candidateId.equals(registry.getSelfInfo().getId())) {
         // Register response from a peer to our vote request
         ballots.put(event.getId(), event);
       } else {
         // Respond to the candidate peer that requested it
-        vote(peers.get(candidateId));
+        vote(registry.getPeers().get(candidateId));
         // If this instance is spare request for voting from another instance should also trigger
         // vote for this one, but only if there is no vote in progress
-        if (selfInfo.isSpare() && voteInitiationTime == null) {
+        if (registry.getSelfInfo().isSpare() && voteInitiationTime == null) {
           vote();
         }
       }
@@ -189,7 +175,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   /** Method scheduled by {@link InstanceController#heartbeatScheduler} */
   public void heartbeat() {
     checkPeers();
-    notifyPeers(prepareHeartbeatEvent(), peers.values());
+    notifyPeers(prepareHeartbeatEvent(), registry.getPeers().values());
   }
 
   /**
@@ -209,7 +195,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    */
   public void broadcastMessage(
       @NotNull final String id, @Nullable final Map<String, String> properties) {
-    notifyPeers(prepareMessageEvent(id, properties), peers.values());
+    notifyPeers(prepareMessageEvent(id, properties), registry.getPeers().values());
   }
 
   /**
@@ -242,7 +228,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    * @return Set of active peers
    */
   public Set<InstanceInfo> getAssignedPeers() {
-    return peers.values().stream()
+    return registry.getPeers().values().stream()
         .filter(instanceInfo -> instanceInfo.getOrder() > 0)
         .collect(Collectors.toSet());
   }
@@ -252,8 +238,8 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    * is unknown.
    */
   public void resign() {
-    selfInfo.setState(STATE_SPARE);
-    selfInfo.setOrder(ORDER_UNASSIGNED);
+    registry.getSelfInfo().setState(STATE_SPARE);
+    registry.getSelfInfo().setOrder(ORDER_UNASSIGNED);
     vote();
   }
 
@@ -269,7 +255,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
 
   private void checkPeers() {
     final List<InstanceInfo> absentPeers =
-        peers.values().stream()
+        registry.getPeers().values().stream()
             .filter(
                 peer ->
                     Duration.between(peer.getLast(), Instant.now()).toMillis()
@@ -278,15 +264,15 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
     if (!absentPeers.isEmpty()) {
       // Firstly, confirm that the absent peer is not discoverable (i.e. disappeared from
       // Kubernetes).
-      final Map<String, InstanceInfo> discoveredPeers = discoverPeers();
+      final Map<String, InstanceInfo> discoveredPeers = registry.discoverPeers();
       absentPeers.forEach(
           absentPeer -> {
             if (!discoveredPeers.containsKey(absentPeer.getId())) {
               log.debug(
                   "Removing missing instance {} [{}]", absentPeer.getId(), absentPeer.getHost());
-              peers.remove(absentPeer.getId());
+              registry.getPeers().remove(absentPeer.getId());
               eventPublisher.publishEvent(new InstanceRemovedEvent(this, absentPeer));
-              if (absentPeer.isAssigned() && selfInfo.inState(STATE_SPARE)) {
+              if (absentPeer.isAssigned() && registry.getSelfInfo().inState(STATE_SPARE)) {
                 vote();
               }
             } else if (absentPeer.inNeitherState(STATE_ABSENT)) {
@@ -295,7 +281,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
                       + "Marking as absent.",
                   absentPeer.getId(),
                   absentPeer.getHost());
-              peers.get(absentPeer.getId()).setState(STATE_ABSENT);
+              registry.getPeers().get(absentPeer.getId()).setState(STATE_ABSENT);
               // What to do if the problem persists? Give it a bit more time and permanently remove?
               // For now, such an instance will be kept in the pool
             }
@@ -306,13 +292,13 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   /** Sends a vote request to all peers */
   private void vote() {
     Map<String, String> props = new HashMap<>();
-    props.put(PROPERTY_CANDIDATE, selfInfo.getId());
-    props.put(PROPERTY_ORDER, Integer.toString(resolveOrder(selfInfo)));
+    props.put(PROPERTY_CANDIDATE, registry.getSelfInfo().getId());
+    props.put(PROPERTY_ORDER, Integer.toString(registry.resolveOrder(registry.getSelfInfo())));
     final ElectorEvent voteEvent =
         prepareHeartbeatEvent().toBuilder().event(EVENT_VOTE).properties(props).build();
     ballots.clear();
     voteInitiationTime = Instant.now();
-    notifyPeers(voteEvent, peers.values());
+    notifyPeers(voteEvent, registry.getPeers().values());
     ballotScheduler.schedule(
         this::checkBallots, properties.getBallotTimeoutMillis(), TimeUnit.MILLISECONDS);
   }
@@ -325,7 +311,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   private void vote(final InstanceInfo candidate) {
     Map<String, String> props = new HashMap<>();
     props.put(PROPERTY_CANDIDATE, candidate.getId());
-    props.put(PROPERTY_ORDER, Integer.toString(resolveOrder(candidate)));
+    props.put(PROPERTY_ORDER, Integer.toString(registry.resolveOrder(candidate)));
     notifyPeers(
         prepareHeartbeatEvent().toBuilder().event(EVENT_VOTE).properties(props).build(),
         List.of(candidate));
@@ -346,7 +332,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
         vote();
       }
     } else if (properties.getBallotType().equals(BallotType.UNANIMOUS)) {
-      if (ballots.size() == peers.size()) {
+      if (ballots.size() == registry.getPeers().size()) {
         log.debug("Electing in unanimous ballot...");
         elect();
       } else {
@@ -357,7 +343,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   }
 
   private void elect() {
-    int updatedSelfOrder = resolveOrder(selfInfo);
+    int updatedSelfOrder = registry.resolveOrder(registry.getSelfInfo());
     boolean consensus =
         ballots.values().stream()
             .allMatch(
@@ -384,23 +370,23 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   }
 
   private void setInstanceReady(int order, final String state) {
-    if (selfInfo.getOrder() != order || !selfInfo.inState(state)) {
-      selfInfo.setOrder(order);
-      selfInfo.setState(state);
-      log.info("This {}", selfInfo);
-      notifyPeers(prepareHeartbeatEvent(), peers.values());
-      eventPublisher.publishEvent(new InstanceReadyEvent(this, selfInfo));
+    if (registry.getSelfInfo().getOrder() != order || !registry.getSelfInfo().inState(state)) {
+      registry.getSelfInfo().setOrder(order);
+      registry.getSelfInfo().setState(state);
+      log.info("This {}", registry.getSelfInfo());
+      notifyPeers(prepareHeartbeatEvent(), registry.getPeers().values());
+      eventPublisher.publishEvent(new InstanceReadyEvent(this, registry.getSelfInfo()));
     }
   }
 
   private ElectorEvent prepareHeartbeatEvent() {
     return ElectorEvent.builder()
         .event(EVENT_HELLO)
-        .id(selfInfo.getId())
-        .host(selfInfo.getHost())
-        .state(selfInfo.getState())
-        .order(selfInfo.getOrder())
-        .weight(selfInfo.getWeight())
+        .id(registry.getSelfInfo().getId())
+        .host(registry.getSelfInfo().getHost())
+        .state(registry.getSelfInfo().getState())
+        .order(registry.getSelfInfo().getOrder())
+        .weight(registry.getSelfInfo().getWeight())
         .build();
   }
 
@@ -435,68 +421,6 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
     } catch (Exception e) {
       log.error("Failed to send instance notification", e);
     }
-  }
-
-  private Map<String, InstanceInfo> discoverPeers() {
-    final Map<String, InstanceInfo> discoveredPeers = new HashMap<>();
-    final List<ServiceInstance> instances =
-        discoveryClient.getInstances(properties.getServiceName());
-    instances.stream()
-        .filter(serviceInstance -> !serviceInstance.getInstanceId().equals(selfInfo.getId()))
-        .forEach(
-            serviceInstance -> {
-              final InstanceInfo info =
-                  InstanceInfo.builder()
-                      .id(serviceInstance.getInstanceId())
-                      .weight(0)
-                      .host(serviceInstance.getHost())
-                      .order(ORDER_UNASSIGNED)
-                      .state(STATE_DISCOVERED)
-                      .last(Instant.now())
-                      .build();
-              discoveredPeers.put(info.getId(), info);
-            });
-    return discoveredPeers;
-  }
-
-  /**
-   * Calculates correct order number for the requested instance based on the order of peers, states
-   * and weights. The highest available order (the lowes number) will be returned from the pool. If
-   * whole pool of numbers is already occupied, ORDER_UNASSIGNED will be given.
-   *
-   * @param candidate candidate to be checked.
-   * @return Order number.
-   */
-  private int resolveOrder(@NotNull final InstanceInfo candidate) {
-    if (candidate.inNeitherState(STATE_INTRODUCED, STATE_SPARE)) {
-      return candidate.isActive() ? candidate.getOrder() : ORDER_UNASSIGNED;
-    }
-    final List<Integer> takenOrderNumbers =
-        Stream.concat(peers.values().stream(), Stream.of(selfInfo))
-            .filter(
-                peer ->
-                    peer.isActive()
-                        || (peer.inState(STATE_ABSENT) && peer.getOrder() > ORDER_UNASSIGNED))
-            .map(InstanceInfo::getOrder)
-            .collect(Collectors.toList());
-    final List<Integer> availableOrderNumbers =
-        IntStream.range(1, properties.getPoolSize() + 1).boxed().collect(Collectors.toList());
-    availableOrderNumbers.removeAll(takenOrderNumbers);
-    if (availableOrderNumbers.isEmpty()) {
-      return ORDER_UNASSIGNED;
-    }
-    final List<InstanceInfo> weightedUsurpers =
-        Stream.concat(peers.values().stream(), Stream.of(selfInfo))
-            .filter(peer -> peer.inEitherState(STATE_INTRODUCED, STATE_SPARE))
-            .sorted(Comparator.comparingLong(InstanceInfo::getWeight).reversed())
-            .collect(Collectors.toList());
-    final int candidateIndex =
-        IntStream.range(0, weightedUsurpers.size())
-            .filter(index -> candidate.equals(weightedUsurpers.get(index)))
-            .findFirst()
-            .orElseThrow();
-    int offset = candidateIndex - availableOrderNumbers.size() + 1;
-    return offset > 0 ? ORDER_UNASSIGNED : availableOrderNumbers.get(candidateIndex);
   }
 
   private String getEventProperty(final ElectorEvent event, final String name) {

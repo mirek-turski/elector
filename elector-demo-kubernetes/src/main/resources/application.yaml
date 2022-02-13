@@ -1,6 +1,6 @@
 spring:
   application:
-    name: elector-demo-kubernetes
+    name: elector-demo
   cloud:
     config:
       enabled: false
@@ -8,6 +8,9 @@ spring:
       enabled: true
       discovery:
         enabled: true
+    elector:
+      enabled: true
+      pool-size: 4
   jackson:
     serialization.INDENT_OUTPUT: true
 
@@ -21,6 +24,8 @@ management:
       enabled: true
     health:
       show-details: always
+    info:
+      enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
@@ -31,4 +36,6 @@ management:
 logging:
   level:
     root: ERROR
-    com.elector: DEBUG
+    com.elector: TRACE
+    org.springframework.cloud.kubernetes: DEBUG
+    io.fabric8.kubernetes.client: DEBUG

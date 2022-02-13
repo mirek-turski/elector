@@ -5,7 +5,6 @@ import static com.elector.Constant.ORDER_HIGHEST;
 import static com.elector.Constant.ORDER_UNASSIGNED;
 import static com.elector.Constant.STATE_ABSENT;
 import static com.elector.Constant.STATE_ACTIVE;
-import static com.elector.Constant.STATE_DISCOVERED;
 import static com.elector.Constant.STATE_INTRODUCED;
 import static com.elector.Constant.STATE_NEW;
 import static com.elector.Constant.STATE_SPARE;
@@ -36,7 +35,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import javax.validation.constraints.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -57,18 +55,11 @@ public class InstanceControllerTest {
   private static final Logger log = LogUtils.createConsoleLogger("com.elector", Level.DEBUG);
 
   private final ElectorProperties properties = new ElectorProperties();
-  final InstanceController controller = new InstanceController(properties, null, null, null, null);
-
-  InstanceInfo self =
-      InstanceInfo.builder().weight(1233L).order(ORDER_UNASSIGNED).state(STATE_INTRODUCED).build();
-
-  InstanceInfo introducedInstance =
-      InstanceInfo.builder().weight(1234L).order(ORDER_UNASSIGNED).state(STATE_INTRODUCED).build();
 
   private static InstanceInfo getInfo(InstanceController controller) {
-    return (InstanceInfo) ReflectionTestUtils.getField(controller, "selfInfo");
+    return ((InstanceRegistry) ReflectionTestUtils.getField(controller, "registry")).getSelfInfo();
   }
-  
+
   private TestEnvironment env;
   
   @AfterEach
@@ -281,108 +272,25 @@ public class InstanceControllerTest {
     await()
         .atMost(properties.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
         .until(
-            () -> controller3.getPeers().get(getInfo(controller1).getId()).inState(STATE_ABSENT));
+            () ->
+                env.getInstanceRegistries()
+                    .get(ip3)
+                    .getPeers()
+                    .get(getInfo(controller1).getId())
+                    .inState(STATE_ABSENT));
     assertTrue(getInfo(controller3).inState(STATE_SPARE));
     log.info(">>>>>> Unmuting instance #1");
     env.unmutePod(ip1);
     await()
         .atMost(properties.getHeartbeatTimeoutMillis(), TimeUnit.MILLISECONDS)
-        .until(() -> controller3.getPeers().get(getInfo(controller1).getId()).isActive());
+        .until(
+            () ->
+                env.getInstanceRegistries()
+                    .get(ip3)
+                    .getPeers()
+                    .get(getInfo(controller1).getId())
+                    .isActive());
     assertTrue(getInfo(controller3).inState(STATE_SPARE));
-  }
-
-  @Test
-  public void testResolveOrderInvalidCandidateState() {
-    Integer order =
-        ReflectionTestUtils.invokeMethod(
-            controller, "resolveOrder", self.toBuilder().order(12).state(STATE_ACTIVE).build());
-    assertEquals(12, order);
-    order =
-        ReflectionTestUtils.invokeMethod(
-            controller, "resolveOrder", self.toBuilder().state(STATE_DISCOVERED).build());
-    assertEquals(0, order);
-  }
-
-  @Test
-  public void testResolveOrderSelfNoPeers() {
-    properties.setPoolSize(1);
-    assertOrder(1, self, self, null, null);
-  }
-
-  @Test
-  public void testResolveOrderSelfReadyPeerIntroduced() {
-    properties.setPoolSize(2);
-    assertOrder(2, self.toBuilder().order(1).state(STATE_ACTIVE).build(), introducedInstance, null, null);
-    assertOrder(1, self.toBuilder().order(2).state(STATE_ACTIVE).build(), introducedInstance, null, null);
-  }
-
-  @Test
-  public void testResolveOrderSelfDiscoveredPeer() {
-    properties.setPoolSize(2);
-    final InstanceInfo discoveredInstance =
-        InstanceInfo.builder().weight(0).order(0).state(STATE_DISCOVERED).build();
-    assertOrder(1, self, self, List.of(discoveredInstance), null);
-  }
-
-  @Test
-  public void testResolveOrderSelfPeersReady() {
-    properties.setPoolSize(4);
-    assertOrder(3, self, self, null, null, 1, 2, 4);
-    assertOrder(2, self, self, null, null, 1, 3, 4);
-    assertOrder(1, self, self, null, null, 2, 3, 4);
-    assertOrder(4, self, self, null, null, 1, 2, 3);
-    assertOrder(0, self, self, null, null, 1, 2, 3, 4);
-  }
-
-  @Test
-  public void testResolveOrderWeighted() {
-    properties.setPoolSize(4);
-
-    assertOrder(0, self, self, null, List.of(introducedInstance.toBuilder().weight(1234L).build()), 1, 2, 4);
-    assertOrder(3, self, self, null, List.of(introducedInstance.toBuilder().weight(1232L).build()), 1, 2, 4);
-    assertOrder(0, self, self, null, List.of(introducedInstance.toBuilder().weight(1234L).build()), 1, 2, 3);
-    assertOrder(4, self, self, null, List.of(introducedInstance.toBuilder().weight(1232L).build()), 1, 2, 3);
-    assertOrder(0, self, self, null, List.of(introducedInstance.toBuilder().weight(1234L).build()), 2, 3, 4);
-    assertOrder(1, self, self, null, List.of(introducedInstance.toBuilder().weight(1232L).build()), 2, 3, 4);
-
-    assertOrder(3, self, introducedInstance.toBuilder().weight(1234L).build(), null, null, 1, 2, 4);
-    assertOrder(0, self, introducedInstance.toBuilder().weight(1232L).build(), null, null, 1, 2, 4);
-    assertOrder(4, self, introducedInstance.toBuilder().weight(1234L).build(), null, null, 1, 2, 3);
-    assertOrder(0, self, introducedInstance.toBuilder().weight(1232L).build(), null, null, 1, 2, 3);
-    assertOrder(1, self, introducedInstance.toBuilder().weight(1234L).build(), null, null, 2, 3, 4);
-    assertOrder(0, self, introducedInstance.toBuilder().weight(1232L).build(), null, null, 2, 3, 4);
-  }
-
-  private void assertOrder(
-      int expected,
-      @NotNull InstanceInfo self,
-      @NotNull InstanceInfo candidate,
-      List<InstanceInfo> discovered,
-      List<InstanceInfo> introduced,
-      int... readyOrderValues) {
-    Map<String, InstanceInfo> peers = new HashMap<>();
-    for (int readyOrderValue : readyOrderValues) {
-      peers.put(
-              UUID.randomUUID().toString(),
-              InstanceInfo.builder()
-                      .weight((long) (Math.random() * 1000))
-                      .order(readyOrderValue)
-                      .state(STATE_ACTIVE)
-                      .build());
-    }
-    if (!self.equals(candidate)) {
-      peers.put(UUID.randomUUID().toString(), candidate);
-    }
-    if (introduced != null) {
-      introduced.forEach(peer -> peers.put(UUID.randomUUID().toString(), peer));
-    }
-    if (discovered != null) {
-      discovered.forEach(peer -> peers.put(UUID.randomUUID().toString(), peer));
-    }
-    ReflectionTestUtils.setField(controller, "selfInfo", self);
-    ReflectionTestUtils.setField(controller, "peers", peers);
-    int result = ReflectionTestUtils.invokeMethod(controller, "resolveOrder", candidate);
-    assertEquals(expected, result);
   }
 
   private void assertWeightedOrder(InstanceInfo...instances) {
@@ -402,6 +310,7 @@ public class InstanceControllerTest {
     private final DiscoveryClientStub discoveryClient = new DiscoveryClientStub();
     private final Map<String, DefaultServiceInstance> serviceInstances = new HashMap<>();
     private final Map<String, ApplicationEventPublisher> eventPublishers = new HashMap<>();
+    private final Map<String, InstanceRegistry> instanceRegistries = new HashMap<>();
     private final ElectorProperties properties;
     private int newIp;
 
@@ -436,14 +345,14 @@ public class InstanceControllerTest {
       serviceInstance.setHost(ip);
       final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
+      final InstanceRegistry registry = new InstanceRegistry(properties, selfInfo, discoveryClient);
       final InstanceController instanceController =
-          new InstanceController(
-                  properties, selfInfo, discoveryClient, eventDispatcher, eventPublisher);
+          new InstanceController(properties, registry, eventDispatcher, eventPublisher);
       serviceInstances.put(ip, serviceInstance);
       eventPublishers.put(ip, eventPublisher);
       eventDispatcher.addPod(ip, instanceController);
       discoveryClient.addInstances(serviceInstance);
-
+      instanceRegistries.put(ip, registry);
       return ip;
     }
 
@@ -471,7 +380,7 @@ public class InstanceControllerTest {
     }
 
     public void deletePod(String ip) {
-      ReflectionTestUtils.setField(getController(ip), "discoveryClient", new DiscoveryClientStub());
+      ReflectionTestUtils.setField(getInstanceRegistries().get(ip), "discoveryClient", new DiscoveryClientStub());
       getController(ip).deactivate();
       discoveryClient.removeInstance(serviceInstances.get(ip));
       eventPublishers.remove(ip);
@@ -507,9 +416,9 @@ public class InstanceControllerTest {
       return this.serviceInstances;
     }
 
-    public Map<String, ApplicationEventPublisher> getEventPublishers() {
-      return this.eventPublishers;
-    }
+    public Map<String, ApplicationEventPublisher> getEventPublishers() { return this.eventPublishers; }
+
+    public Map<String, InstanceRegistry> getInstanceRegistries() { return this.instanceRegistries; }
 
     public ElectorProperties getProperties() {
       return this.properties;

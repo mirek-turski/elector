@@ -8,10 +8,11 @@ import com.elector.InstanceInfo.InstanceInfoBuilder;
 import java.time.Instant;
 import java.util.Random;
 import javax.annotation.Nullable;
-import org.springframework.boot.actuate.autoconfigure.health.ConditionalOnEnabledHealthIndicator;
-import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.actuate.autoconfigure.info.ConditionalOnEnabledInfoContributor;
+import org.springframework.boot.actuate.info.InfoContributor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
@@ -36,7 +37,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class ElectorAutoConfiguration {
 
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnClass(PodUtils.class)
+  @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.PodUtils")
   protected static class KubernetesConfiguration {
     @Bean
     @ConditionalOnMissingBean
@@ -51,6 +52,7 @@ public class ElectorAutoConfiguration {
   }
 
   @Configuration(proxyBeanMethods = false)
+  @ConditionalOnMissingClass("org.springframework.cloud.kubernetes.PodUtils")
   protected static class SimpleConfiguration {
     @Bean
     @ConditionalOnMissingBean
@@ -112,23 +114,27 @@ public class ElectorAutoConfiguration {
   @Bean
   public InstanceController instanceController(
       ElectorProperties properties,
-      InstanceInfo selfInfo,
-      DiscoveryClient discoveryClient,
+      InstanceRegistry instanceRegistry,
       IntegrationFlow electorOutUdpAdapter,
       ApplicationEventPublisher eventPublisher) {
     return new InstanceController(
-        properties, selfInfo, discoveryClient, electorOutUdpAdapter, eventPublisher);
+        properties, instanceRegistry, electorOutUdpAdapter, eventPublisher);
+  }
+
+  @Bean
+  public InstanceRegistry instanceRegistry(
+      ElectorProperties properties, InstanceInfo selfInfo, DiscoveryClient discoveryClient) {
+    return new InstanceRegistry(properties, selfInfo, discoveryClient);
   }
 
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnClass(HealthIndicator.class)
+  @ConditionalOnClass(InfoContributor.class)
   protected static class InstancesActuatorConfiguration {
-
     @Bean
-    @ConditionalOnEnabledHealthIndicator("instances")
+    @ConditionalOnEnabledInfoContributor("instances")
     public InstanceInfoContributor instanceInfoContributor(
-        InstanceInfo selfInfo, InstanceController instanceController) {
-      return new InstanceInfoContributor(selfInfo, instanceController);
+        InstanceRegistry instanceRegistry) {
+      return new InstanceInfoContributor(instanceRegistry);
     }
   }
 }

@@ -185,6 +185,9 @@ public class InstanceInfo implements Serializable {
     }
 
     public InstanceInfo build() {
+      if (id == null || id.isBlank()) {
+        throw new IllegalArgumentException("The id property of InstanceInfo must not be blank");
+      }
       return new InstanceInfo(id, host, state, order, weight, last);
     }
 
