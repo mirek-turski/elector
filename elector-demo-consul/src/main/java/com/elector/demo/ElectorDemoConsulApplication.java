@@ -25,6 +25,7 @@ public class ElectorDemoConsulApplication {
       @Nullable ConsulDiscoveryProperties discoveryProperties) {
     if (discoveryProperties != null) {
       builder.id(discoveryProperties.getInstanceId());
+      builder.host(discoveryProperties.getHostname());
     }
     return builder.build();
   }

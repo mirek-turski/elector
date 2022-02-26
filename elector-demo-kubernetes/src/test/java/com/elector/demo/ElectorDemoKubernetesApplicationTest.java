@@ -17,8 +17,8 @@ import org.springframework.boot.test.context.SpringBootTest;
       "spring.cloud.elector.ballot-timeout-millis=300",
       "spring.cloud.elector.ballot-type=quorum",
       "spring.cloud.elector.instance-id=test",
-      "spring.cloud.kubernetes.enabled=true",
-      "spring.cloud.kubernetes.discovery.enabled=true"
+      "spring.cloud.kubernetes.enabled=false",
+      "spring.cloud.kubernetes.discovery.enabled=false"
     })
 public class ElectorDemoKubernetesApplicationTest {
 

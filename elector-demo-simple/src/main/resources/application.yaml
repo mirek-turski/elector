@@ -26,7 +26,6 @@ spring:
       ballot-timeout-millis: 1000
       pool-size: 1
       ballot-type: QUORUM
-      instance-id: 8832fea7-60b0-400a-95b6-828968a907d9
   jackson:
     serialization.INDENT_OUTPUT: true
 

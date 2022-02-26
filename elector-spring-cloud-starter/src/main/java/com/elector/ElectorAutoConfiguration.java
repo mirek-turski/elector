@@ -7,6 +7,7 @@ import static com.elector.Constant.STATE_NEW;
 import com.elector.InstanceInfo.InstanceInfoBuilder;
 import java.time.Instant;
 import java.util.Random;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import org.springframework.boot.actuate.autoconfigure.info.ConditionalOnEnabledInfoContributor;
 import org.springframework.boot.actuate.info.InfoContributor;
@@ -17,7 +18,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.cloud.client.discovery.simple.SimpleDiscoveryProperties;
 import org.springframework.cloud.commons.util.InetUtils;
 import org.springframework.cloud.kubernetes.PodUtils;
 import org.springframework.context.ApplicationEventPublisher;
@@ -44,8 +44,8 @@ public class ElectorAutoConfiguration {
     public InstanceInfo selfInfo(@Nullable PodUtils podUtils, InstanceInfoBuilder builder) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         builder
-            .host(podUtils.currentPod().get().getStatus().getPodIP())
-            .id(podUtils.currentPod().get().getMetadata().getUid());
+            .id(podUtils.currentPod().get().getMetadata().getUid())
+            .host(podUtils.currentPod().get().getStatus().getPodIP());
       }
       return builder.build();
     }
@@ -53,15 +53,11 @@ public class ElectorAutoConfiguration {
 
   @Configuration(proxyBeanMethods = false)
   @ConditionalOnMissingClass("org.springframework.cloud.kubernetes.PodUtils")
-  protected static class SimpleConfiguration {
+  protected static class DefaultConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    public InstanceInfo selfInfo(InstanceInfoBuilder builder, @Nullable SimpleDiscoveryProperties discoveryProperties) {
-      final InstanceInfo selfInfo = builder.build();
-      if (discoveryProperties != null && discoveryProperties.getLocal() != null) {
-        discoveryProperties.getLocal().setInstanceId(selfInfo.getId());
-      }
-      return selfInfo;
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder) {
+      return builder.build();
     }
   }
 
@@ -75,7 +71,7 @@ public class ElectorAutoConfiguration {
       hostname = inet.findFirstNonLoopbackHostInfo().getIpAddress();
     }
     return InstanceInfo.builder()
-        .id(properties.getInstanceId())
+        .id(properties.getInstanceId() != null ? properties.getInstanceId() : UUID.randomUUID().toString())
         .host(hostname)
         .weight(Math.abs(new Random(System.currentTimeMillis()).nextLong()))
         .order(ORDER_UNASSIGNED)
