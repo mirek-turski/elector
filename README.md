@@ -22,15 +22,20 @@ docker-compose down
 ### Prepare Kubernetes
 
 ```shell
+cd elector-demo-kubernetes
 eval $(minikube -p minikube docker-env)
 kubectl apply -f ./update-default-service-account.yml -n default
 /bin/sh ./kubernetes-deploy.sh
 ```
 
+## Consul Service Discovery with elector-demo-consul application
+
 ```shell
-cd elector-demo-kubernetes
-mvn spring-boot:build-image -Dspring-boot.build-image.imageName=elector-demo-kubernetes
-docker run -e "SPRING_CLOUD_KUBERNETES_ENABLED=false" -p 8080:8080 -t --name elector-demo-kubernetes elector-demo-kubernetes
+cd elector-demo-consul
+docker build -t elector-demo-consul .
+docker-compose up -d
+docker-compose logs
+docker-compose down
 ```
 
 ## Acknowledgments

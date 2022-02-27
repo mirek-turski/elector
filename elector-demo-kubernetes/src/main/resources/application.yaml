@@ -36,6 +36,6 @@ management:
 logging:
   level:
     root: ERROR
-    com.elector: TRACE
-    org.springframework.cloud.kubernetes: DEBUG
-    io.fabric8.kubernetes.client: DEBUG
+    com.elector: DEBUG
+#    org.springframework.cloud.kubernetes: DEBUG
+#    io.fabric8.kubernetes.client: DEBUG
