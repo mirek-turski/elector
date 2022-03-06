@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: elector-demo-zookeeper
+  cloud:
+    config:
+      enabled: false
+    zookeeper:
+      connect-string: localhost:2181
+      enabled: true
+      discovery:
+        enabled: true
+        register: true
+        prefer-ip-address: true
+    elector:
+      enabled: true
+      service-name: ${spring.application.name}
+      listener-port: 12321
+      heartbeat-interval-millis: 1000
+      heartbeat-timeout-millis: 3000
+      ballot-timeout-millis: 1000
+      pool-size: 1
+      ballot-type: QUORUM
+  jackson:
+    serialization.INDENT_OUTPUT: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    metrics:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    root: ERROR
+    com.elector: INFO

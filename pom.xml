@@ -108,6 +108,7 @@
         <module>elector-demo-simple</module>
         <module>elector-demo-kubernetes</module>
         <module>elector-demo-consul</module>
+        <module>elector-demo-zookeeper</module>
     </modules>
 
 </project>

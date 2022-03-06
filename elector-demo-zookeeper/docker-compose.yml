@@ -1,0 +1,31 @@
+version: '3.9'
+services:
+  zookeeper:
+    image: zookeeper
+    restart: always
+    hostname: zoo1
+    ports:
+      - 2181:2181
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zookeeper:2888:3888;2181
+    healthcheck:
+      test: nc -z localhost 2181 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+  elector-demo-zookeeper:
+    image: elector-demo-zookeeper
+    ports:
+      - '8081-8083:8080'
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      SPRING_CLOUD_ZOOKEEPER_CONNECT_STRING: zookeeper:2181
+      SPRING_CLOUD_ELECTOR_BALLOT_TIMEOUT_MILLIS: 500
+      SPRING_CLOUD_ELECTOR_POOL_SIZE: 3
+    deploy:
+      mode: replicated
+      replicas: 3
