@@ -5,7 +5,9 @@ import static com.elector.Constant.ORDER_UNASSIGNED;
 import static com.elector.Constant.STATE_NEW;
 
 import com.elector.InstanceInfo.InstanceInfoBuilder;
+import io.kubernetes.client.openapi.models.V1Pod;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import javax.annotation.Nullable;
@@ -19,7 +21,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.commons.util.InetUtils;
-import org.springframework.cloud.kubernetes.PodUtils;
+import org.springframework.cloud.kubernetes.commons.PodUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,11 +43,11 @@ public class ElectorAutoConfiguration {
   protected static class KubernetesConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    public InstanceInfo selfInfo(@Nullable PodUtils podUtils, InstanceInfoBuilder builder) {
+    public InstanceInfo selfInfo(@Nullable PodUtils<V1Pod> podUtils, InstanceInfoBuilder builder) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         builder
-            .id(podUtils.currentPod().get().getMetadata().getUid())
-            .host(podUtils.currentPod().get().getStatus().getPodIP());
+            .id(Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid())
+            .host(Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP());
       }
       return builder.build();
     }
