@@ -4,7 +4,7 @@ import static com.elector.Constant.ORDER_UNASSIGNED;
 import static com.elector.Constant.STATE_ACTIVE;
 import static com.elector.Constant.STATE_DISCOVERED;
 import static com.elector.Constant.STATE_INTRODUCED;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,8 +27,8 @@ public class InstanceRegistryTest {
 
   @Test
   public void testResolveOrderInvalidCandidateState() {
-    assertEquals(12, registry.resolveOrder(self.toBuilder().order(12).state(STATE_ACTIVE).build()));
-    assertEquals(0, registry.resolveOrder(self.toBuilder().state(STATE_DISCOVERED).build()));
+    assertThat(registry.resolveOrder(self.toBuilder().order(12).state(STATE_ACTIVE).build())).isEqualTo(12);
+    assertThat(registry.resolveOrder(self.toBuilder().state(STATE_DISCOVERED).build())).isEqualTo(0);
   }
 
   @Test
@@ -111,7 +111,7 @@ public class InstanceRegistryTest {
 
     InstanceRegistry registry = new InstanceRegistry(properties, self, null);
     registry.getPeers().putAll(peers);
-    assertEquals(expected, registry.resolveOrder(candidate));
+    assertThat(registry.resolveOrder(candidate)).isEqualTo(expected);
   }
 
 

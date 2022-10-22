@@ -8,9 +8,8 @@ import static com.elector.Constant.STATE_ACTIVE;
 import static com.elector.Constant.STATE_INTRODUCED;
 import static com.elector.Constant.STATE_NEW;
 import static com.elector.Constant.STATE_SPARE;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -81,13 +80,14 @@ public class InstanceControllerTest {
     log.info(">>>>>> Starting 1st instance");
     Instant start = Instant.now();
     env.startPods(true, ip1);
-    assertTrue(Duration.between(start, Instant.now()).toMillis() > env.getProperties().getBallotTimeoutMillis());
-    assertTrue(getInfo(env.getController(ip1)).isActive());
-    assertEquals(1, getInfo(env.getController(ip1)).getOrder());
+    assertThat(Duration.between(start, Instant.now()).toMillis())
+        .isGreaterThan(env.getProperties().getBallotTimeoutMillis());
+    assertThat(getInfo(env.getController(ip1)).isActive()).isTrue();
+    assertThat(getInfo(env.getController(ip1)).getOrder()).isEqualTo(1);
     log.info(">>>>>> Starting 2nd instance after {} millis", env.getProperties().getBallotTimeoutMillis());
     env.startPods(true, ip2);
-    assertTrue(getInfo(env.getController(ip2)).isActive());
-    assertEquals(2, getInfo(env.getController(ip2)).getOrder());
+    assertThat(getInfo(env.getController(ip2)).isActive()).isTrue();
+    assertThat(getInfo(env.getController(ip2)).getOrder()).isEqualTo(2);
   }
 
   @Test
@@ -99,18 +99,19 @@ public class InstanceControllerTest {
     log.info(">>>>>> Starting 1st instance");
     Set<InstanceController> controllers = new HashSet<>(env.startPods(false, ip1));
     await().timeout(env.getProperties().getBallotTimeoutMillis() * 2L, TimeUnit.MILLISECONDS);
-    assertEquals(STATE_INTRODUCED, getInfo(env.getController(ip1)).getState());
-    assertEquals(0, getInfo(env.getController(ip1)).getOrder());
+    assertThat(getInfo(env.getController(ip1)).getState()).isEqualTo(STATE_INTRODUCED);
+    assertThat(getInfo(env.getController(ip1)).getOrder()).isEqualTo(0);
     log.info(">>>>>> Starting 2nd instance");
     controllers.addAll(env.startPods(false, ip2));
     env.awaitActivation(controllers);
-    assertWeightedOrder(getInfo(env.getController(ip1)), getInfo(env.getController(ip2)));
+    assertWeightedOrder(2, getInfo(env.getController(ip1)), getInfo(env.getController(ip2)));
   }
 
   @Test
   public void testUnanimousBallot() {
     log.info("==================== Running testUnanimousBallot");
     env = TestEnvironment.builder().poolSize(2).ballotType(BallotType.UNANIMOUS).build();
+    // Adding three pods, so that they are discoverable
     String ip1 = env.addPod();
     String ip2 = env.addPod();
     String ip3 = env.addPod();
@@ -118,12 +119,15 @@ public class InstanceControllerTest {
     Set<InstanceController> controllers = new HashSet<>(env.startPods(false, ip1, ip2));
     await().timeout(env.getProperties().getBallotTimeoutMillis() * 2L, TimeUnit.MILLISECONDS);
     controllers.forEach(controller -> {
-      assertEquals(STATE_INTRODUCED, getInfo(controller).getState());
-      assertEquals(0, getInfo(controller).getOrder());
+      assertThat(getInfo(controller).getState()).isEqualTo(STATE_INTRODUCED);
+      assertThat(getInfo(controller).getOrder()).isEqualTo(0);
     });
     log.info(">>>>>> Starting 3nd instance");
     controllers.addAll(env.startPods(false, ip3));
     env.awaitActivation(controllers);
+    // Two out of 3 should be active. The one with the highest wight should get #1, next #2 and the third (spare) #0
+    assertWeightedOrder(2,
+        getInfo(env.getController(ip1)), getInfo(env.getController(ip2)), getInfo(env.getController(ip3)));
   }
 
   @Test
@@ -138,13 +142,17 @@ public class InstanceControllerTest {
         env.startPods(true, ip1, ip2, ip3);
     final Set<InstanceInfo> instances =
         controllers.stream().map(InstanceControllerTest::getInfo).collect(Collectors.toSet());
-    assertEquals(3, instances.size());
+    assertThat(instances.size()).isEqualTo(3);
     List<InstanceInfo> leaders =
         instances.stream().filter(InstanceInfo::isLeader).collect(Collectors.toList());
     List<InstanceInfo> minions =
         instances.stream().filter(InstanceInfo::isMinion).collect(Collectors.toList());
-    assertEquals(1, leaders.size());
-    assertEquals(2, minions.size());
+    assertThat(leaders.size()).isEqualTo(1);
+    assertThat(minions.size()).isEqualTo(2);
+    assertWeightedOrder(1,
+        getInfo(env.getController(leaders.get(0).getHost())),
+        getInfo(env.getController(minions.get(0).getHost())),
+        getInfo(env.getController(minions.get(1).getHost())));
     log.info(">>>>>> Removing leader triggering re-election");
     env.deletePod(leaders.get(0).getHost());
     instances.clear();
@@ -154,8 +162,10 @@ public class InstanceControllerTest {
         .until(() -> instances.stream().anyMatch(InstanceInfo::isLeader));
     leaders = instances.stream().filter(InstanceInfo::isLeader).collect(Collectors.toList());
     minions = instances.stream().filter(InstanceInfo::isMinion).collect(Collectors.toList());
-    assertEquals(1, leaders.size());
-    assertEquals(1, minions.size());
+    assertThat(leaders.size()).isEqualTo(1);
+    assertThat(minions.size()).isEqualTo(1);
+    assertWeightedOrder(1,
+        getInfo(env.getController(leaders.get(0).getHost())), getInfo(env.getController(minions.get(0).getHost())));
     log.info(">>>>>> Leader resigns triggering re-election");
     // Make sure the resigning leader does not get re-elected
     ReflectionTestUtils.setField(leaders.get(0), "weight", minions.get(0).getWeight() - 1);
@@ -165,8 +175,10 @@ public class InstanceControllerTest {
         .until(() -> instances.stream().anyMatch(InstanceInfo::isLeader));
     leaders = instances.stream().filter(InstanceInfo::isLeader).collect(Collectors.toList());
     minions = instances.stream().filter(InstanceInfo::isMinion).collect(Collectors.toList());
-    assertEquals(1, leaders.size());
-    assertEquals(1, minions.size());
+    assertThat(leaders.size()).isEqualTo(1);
+    assertThat(minions.size()).isEqualTo(1);
+    assertWeightedOrder(1,
+        getInfo(env.getController(leaders.get(0).getHost())), getInfo(env.getController(minions.get(0).getHost())));
   }
 
   @Test
@@ -180,8 +192,8 @@ public class InstanceControllerTest {
     verify(env.getEventPublishers().get(ip), timeout(3000).times(1))
         .publishEvent(argumentCaptor.capture());
     InstanceInfo selfInfo = argumentCaptor.getValue().getSelfInfo();
-    assertEquals(STATE_ACTIVE, selfInfo.getState());
-    assertEquals(ORDER_HIGHEST, selfInfo.getOrder());
+    assertThat(selfInfo.getState()).isEqualTo(STATE_ACTIVE);
+    assertThat(selfInfo.getOrder()).isEqualTo(ORDER_HIGHEST);
   }
 
   @Test
@@ -199,14 +211,14 @@ public class InstanceControllerTest {
         .publishEvent(eventCaptor.capture());
     List<ApplicationEvent> events = eventCaptor.getAllValues();
 
-    assertTrue(events.get(0) instanceof InstanceReadyEvent);
-    assertTrue(events.get(1) instanceof InstanceReadyEvent);
+    assertThat(events.get(0)).isInstanceOf(InstanceReadyEvent.class);
+    assertThat(events.get(1)).isInstanceOf(InstanceReadyEvent.class);
     InstanceInfo i0 = ((InstanceReadyEvent) events.get(0)).getSelfInfo();
     InstanceInfo i1 = ((InstanceReadyEvent) events.get(1)).getSelfInfo();
-    assertEquals(STATE_ACTIVE, i0.getState());
-    assertEquals(STATE_ACTIVE, i1.getState());
+    assertThat(i0.getState()).isEqualTo(STATE_ACTIVE);
+    assertThat(i1.getState()).isEqualTo(STATE_ACTIVE);
 
-    assertWeightedOrder(i0, i1);
+    assertWeightedOrder(2, i0, i1);
   }
 
   @Test
@@ -221,8 +233,8 @@ public class InstanceControllerTest {
     ArgumentCaptor<ApplicationEvent> eventCaptor = ArgumentCaptor.forClass(ApplicationEvent.class);
     verify(env.getEventPublishers().get(ip3), timeout(3000).times(1))
         .publishEvent(eventCaptor.capture());
-    assertTrue(eventCaptor.getValue() instanceof InstanceReadyEvent);
-    assertTrue(getInfo(env.getController(ip3)).inState(STATE_SPARE));
+    assertThat(eventCaptor.getValue()).isInstanceOf(InstanceReadyEvent.class);
+    assertThat(getInfo(env.getController(ip3)).inState(STATE_SPARE)).isTrue();
   }
 
   @Test
@@ -246,14 +258,14 @@ public class InstanceControllerTest {
     verify(env.getEventPublishers().get(ip3), timeout(3000).times(3))
         .publishEvent(eventCaptor.capture());
     List<ApplicationEvent> events = eventCaptor.getAllValues();
-    assertTrue(events.get(0) instanceof InstanceReadyEvent);
-    assertTrue(events.get(1) instanceof InstanceRemovedEvent);
-    assertTrue(events.get(2) instanceof InstanceReadyEvent);
-    assertEquals(ip2, ((InstanceRemovedEvent) events.get(1)).getInstanceInfo().getHost());
+    assertThat(events.get(0)).isInstanceOf(InstanceReadyEvent.class);
+    assertThat(events.get(1)).isInstanceOf(InstanceRemovedEvent.class);
+    assertThat(events.get(2)).isInstanceOf(InstanceReadyEvent.class);
+    assertThat(((InstanceRemovedEvent) events.get(1)).getInstanceInfo().getHost()).isEqualTo(ip2);
     InstanceInfo activatedInstance = ((InstanceReadyEvent) events.get(2)).getSelfInfo();
-    assertTrue(activatedInstance.isActive());
-    assertEquals(ip3, activatedInstance.getHost());
-    assertEquals(orderToClaim, activatedInstance.getOrder());
+    assertThat(activatedInstance.getState()).isEqualTo(STATE_ACTIVE);
+    assertThat(activatedInstance.getHost()).isEqualTo(ip3);
+    assertThat(activatedInstance.getOrder()).isEqualTo(orderToClaim);
   }
 
   @Test
@@ -280,7 +292,7 @@ public class InstanceControllerTest {
                     .getPeers()
                     .get(getInfo(controller1).getId())
                     .inState(STATE_ABSENT));
-    assertTrue(getInfo(controller3).inState(STATE_SPARE));
+    assertThat(getInfo(controller3).inState(STATE_SPARE)).isTrue();
     log.info(">>>>>> Unmuting instance #1");
     env.unmutePod(ip1);
     await()
@@ -292,18 +304,18 @@ public class InstanceControllerTest {
                     .getPeers()
                     .get(getInfo(controller1).getId())
                     .isActive());
-    assertTrue(getInfo(controller3).inState(STATE_SPARE));
+    assertThat(getInfo(controller3).inState(STATE_SPARE)).isTrue();
   }
 
-  private void assertWeightedOrder(InstanceInfo...instances) {
+  private void assertWeightedOrder(int noOfActive, InstanceInfo...instances) {
     Set<InstanceInfo> weightedInstances =
         Arrays.stream(instances)
             .sorted(Comparator.comparingLong(InstanceInfo::getWeight).reversed())
             .collect(Collectors.toCollection(LinkedHashSet::new));
     final AtomicInteger expectedOrder = new AtomicInteger(1);
-    weightedInstances.forEach(instanceInfo -> {
-      assertEquals(expectedOrder.getAndIncrement(), instanceInfo.getOrder());
-    });
+    weightedInstances.forEach(instanceInfo ->
+        assertThat(instanceInfo.getOrder())
+            .isEqualTo(expectedOrder.get() > noOfActive ? 0 : expectedOrder.getAndIncrement()));
   }
 
   private static class TestEnvironment {
@@ -398,12 +410,8 @@ public class InstanceControllerTest {
     public void awaitActivation(Set<InstanceController> controllers) {
       await()
           .atMost(3000, TimeUnit.MILLISECONDS)
-          .until(
-              () ->
-                  controllers.stream()
-                      .allMatch(
-                          controller ->
-                              getInfo(controller).inEitherState(STATE_ACTIVE, STATE_SPARE)));
+          .until(() -> controllers.stream()
+                      .allMatch(controller -> getInfo(controller).inEitherState(STATE_ACTIVE, STATE_SPARE)));
     }
 
     public EventDispatcher getEventDispatcher() {
