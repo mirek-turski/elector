@@ -15,6 +15,7 @@ import static com.elector.Constant.STATE_INTRODUCED;
 import static com.elector.Constant.STATE_NEW;
 import static com.elector.Constant.STATE_SPARE;
 
+import com.elector.ElectorEvent.EventBuilder;
 import com.elector.ElectorProperties.BallotType;
 import java.time.Duration;
 import java.time.Instant;
@@ -131,7 +132,8 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
             .weight(event.getWeight())
             .build();
     sender.setLast(Instant.now());
-    if (registry.getPeers().containsKey(sender.getId()) && registry.getPeers().get(sender.getId()).inState(STATE_ABSENT)) {
+    if (registry.getPeers().containsKey(sender.getId()) &&
+        registry.getPeers().get(sender.getId()).inState(STATE_ABSENT)) {
       log.info(
           "Instance {} [{}] is back online in {} state",
           sender.getId(),
@@ -175,7 +177,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   /** Method scheduled by {@link InstanceController#heartbeatScheduler} */
   public void heartbeat() {
     checkPeers();
-    notifyPeers(prepareHeartbeatEvent(), registry.getPeers().values());
+    notifyPeers(prepareElectorEvent().event(EVENT_HELLO).build(), registry.getPeers().values());
   }
 
   /**
@@ -250,7 +252,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
     if (properties != null) {
       props.putAll(properties);
     }
-    return prepareHeartbeatEvent().toBuilder().event(EVENT_MESSAGE).properties(props).build();
+    return prepareElectorEvent().event(EVENT_MESSAGE).properties(props).build();
   }
 
   private void checkPeers() {
@@ -295,7 +297,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
     props.put(PROPERTY_CANDIDATE, registry.getSelfInfo().getId());
     props.put(PROPERTY_ORDER, Integer.toString(registry.resolveOrder(registry.getSelfInfo())));
     final ElectorEvent voteEvent =
-        prepareHeartbeatEvent().toBuilder().event(EVENT_VOTE).properties(props).build();
+        prepareElectorEvent().event(EVENT_VOTE).properties(props).build();
     ballots.clear();
     voteInitiationTime = Instant.now();
     notifyPeers(voteEvent, registry.getPeers().values());
@@ -313,7 +315,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
     props.put(PROPERTY_CANDIDATE, candidate.getId());
     props.put(PROPERTY_ORDER, Integer.toString(registry.resolveOrder(candidate)));
     notifyPeers(
-        prepareHeartbeatEvent().toBuilder().event(EVENT_VOTE).properties(props).build(),
+        prepareElectorEvent().event(EVENT_VOTE).properties(props).build(),
         List.of(candidate));
   }
 
@@ -374,20 +376,18 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
       registry.getSelfInfo().setOrder(order);
       registry.getSelfInfo().setState(state);
       log.info("This {}", registry.getSelfInfo());
-      notifyPeers(prepareHeartbeatEvent(), registry.getPeers().values());
+      notifyPeers(prepareElectorEvent().event(EVENT_HELLO).build(), registry.getPeers().values());
       eventPublisher.publishEvent(new InstanceReadyEvent(this, registry.getSelfInfo()));
     }
   }
 
-  private ElectorEvent prepareHeartbeatEvent() {
+  private EventBuilder prepareElectorEvent() {
     return ElectorEvent.builder()
-        .event(EVENT_HELLO)
         .id(registry.getSelfInfo().getId())
         .host(registry.getSelfInfo().getHost())
         .state(registry.getSelfInfo().getState())
         .order(registry.getSelfInfo().getOrder())
-        .weight(registry.getSelfInfo().getWeight())
-        .build();
+        .weight(registry.getSelfInfo().getWeight());
   }
 
   private void notifyPeers(final ElectorEvent event, Collection<InstanceInfo> peers) {

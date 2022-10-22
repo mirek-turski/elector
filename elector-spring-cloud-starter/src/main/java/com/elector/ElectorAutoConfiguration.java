@@ -5,12 +5,13 @@ import static com.elector.Constant.ORDER_UNASSIGNED;
 import static com.elector.Constant.STATE_NEW;
 
 import com.elector.InstanceInfo.InstanceInfoBuilder;
-import io.kubernetes.client.openapi.models.V1Pod;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.autoconfigure.info.ConditionalOnEnabledInfoContributor;
 import org.springframework.boot.actuate.info.InfoContributor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -21,7 +22,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.commons.util.InetUtils;
-import org.springframework.cloud.kubernetes.commons.PodUtils;
+import org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,23 +39,28 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ConditionalOnProperty(value = "spring.cloud.elector.enabled", matchIfMissing = true)
 public class ElectorAutoConfiguration {
 
+  private static final Logger log = LoggerFactory.getLogger(ElectorAutoConfiguration.class);
+
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.PodUtils")
+  @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils")
   protected static class KubernetesConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    public InstanceInfo selfInfo(@Nullable PodUtils<V1Pod> podUtils, InstanceInfoBuilder builder) {
+    public InstanceInfo selfInfo(@Nullable KubernetesClientPodUtils podUtils, InstanceInfoBuilder builder) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
-        builder
-            .id(Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid())
-            .host(Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP());
+        var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
+        var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();
+        log.trace("Running inside Kubernetes pod id={}, ip={}", id, ip);
+        builder.id(id).host(ip);
+      } else {
+        log.trace("Not running inside Kubernetes");
       }
       return builder.build();
     }
   }
 
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnMissingClass("org.springframework.cloud.kubernetes.PodUtils")
+  @ConditionalOnMissingClass("org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils")
   protected static class DefaultConfiguration {
     @Bean
     @ConditionalOnMissingBean

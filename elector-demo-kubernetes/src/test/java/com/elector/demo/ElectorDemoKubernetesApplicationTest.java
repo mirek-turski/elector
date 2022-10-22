@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest(
     properties = {
+			"spring.application.name=elector-demo",
       "server.port=0",
       "spring.cloud.elector.enabled=true",
       "spring.cloud.elector.pool-size=1",

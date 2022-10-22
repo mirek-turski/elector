@@ -27,7 +27,8 @@ spring:
       pool-size: 1
       ballot-type: QUORUM
   jackson:
-    serialization.INDENT_OUTPUT: true
+    serialization:
+      INDENT_OUTPUT: true
 
 management:
   endpoints:

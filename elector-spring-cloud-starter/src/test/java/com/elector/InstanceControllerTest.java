@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -57,7 +58,8 @@ public class InstanceControllerTest {
   private final ElectorProperties properties = new ElectorProperties();
 
   private static InstanceInfo getInfo(InstanceController controller) {
-    return ((InstanceRegistry) ReflectionTestUtils.getField(controller, "registry")).getSelfInfo();
+    return ((InstanceRegistry) Objects.requireNonNull(ReflectionTestUtils.getField(controller, "registry")))
+        .getSelfInfo();
   }
 
   private TestEnvironment env;
@@ -78,14 +80,14 @@ public class InstanceControllerTest {
     String ip2 = env.addPod();
     log.info(">>>>>> Starting 1st instance");
     Instant start = Instant.now();
-    Set<InstanceController> controllers = env.startPods(true, ip1);
+    env.startPods(true, ip1);
     assertTrue(Duration.between(start, Instant.now()).toMillis() > env.getProperties().getBallotTimeoutMillis());
-    assertTrue(getInfo(controllers.stream().findFirst().get()).isActive());
-    assertEquals(1, getInfo(controllers.stream().findFirst().get()).getOrder());
+    assertTrue(getInfo(env.getController(ip1)).isActive());
+    assertEquals(1, getInfo(env.getController(ip1)).getOrder());
     log.info(">>>>>> Starting 2nd instance after {} millis", env.getProperties().getBallotTimeoutMillis());
-    controllers = env.startPods(true, ip2);
-    assertTrue(getInfo(controllers.stream().findFirst().get()).isActive());
-    assertEquals(2, getInfo(controllers.stream().findFirst().get()).getOrder());
+    env.startPods(true, ip2);
+    assertTrue(getInfo(env.getController(ip2)).isActive());
+    assertEquals(2, getInfo(env.getController(ip2)).getOrder());
   }
 
   @Test
@@ -97,8 +99,8 @@ public class InstanceControllerTest {
     log.info(">>>>>> Starting 1st instance");
     Set<InstanceController> controllers = new HashSet<>(env.startPods(false, ip1));
     await().timeout(env.getProperties().getBallotTimeoutMillis() * 2L, TimeUnit.MILLISECONDS);
-    assertEquals(STATE_INTRODUCED, getInfo(controllers.stream().findFirst().get()).getState());
-    assertEquals(0, getInfo(controllers.stream().findFirst().get()).getOrder());
+    assertEquals(STATE_INTRODUCED, getInfo(env.getController(ip1)).getState());
+    assertEquals(0, getInfo(env.getController(ip1)).getOrder());
     log.info(">>>>>> Starting 2nd instance");
     controllers.addAll(env.startPods(false, ip2));
     env.awaitActivation(controllers);
@@ -299,7 +301,7 @@ public class InstanceControllerTest {
             .sorted(Comparator.comparingLong(InstanceInfo::getWeight).reversed())
             .collect(Collectors.toCollection(LinkedHashSet::new));
     final AtomicInteger expectedOrder = new AtomicInteger(1);
-    weightedInstances.stream().forEach(instanceInfo -> {
+    weightedInstances.forEach(instanceInfo -> {
       assertEquals(expectedOrder.getAndIncrement(), instanceInfo.getOrder());
     });
   }
@@ -540,7 +542,7 @@ public class InstanceControllerTest {
         ElectorEvent event = (ElectorEvent) message.getPayload();
         StringBuilder ip = new StringBuilder();
         try {
-          URI destination = new URI((String) message.getHeaders().get(HEADER_TARGET));
+          URI destination = new URI((String) Objects.requireNonNull(message.getHeaders().get(HEADER_TARGET)));
           ip.append(destination.getHost());
         } catch (URISyntaxException e) {
           // Do nothing
