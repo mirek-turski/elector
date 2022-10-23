@@ -16,16 +16,18 @@ import org.springframework.boot.actuate.autoconfigure.info.ConditionalOnEnabledI
 import org.springframework.boot.actuate.info.InfoContributor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.commons.util.InetUtils;
+import org.springframework.cloud.consul.discovery.ConsulDiscoveryProperties;
 import org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils;
+import org.springframework.cloud.zookeeper.discovery.ZookeeperDiscoveryProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
 import org.springframework.integration.dsl.Transformers;
@@ -45,12 +47,14 @@ public class ElectorAutoConfiguration {
   @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils")
   protected static class KubernetesConfiguration {
     @Bean
+    @Primary
     @ConditionalOnMissingBean
-    public InstanceInfo selfInfo(@Nullable KubernetesClientPodUtils podUtils, InstanceInfoBuilder builder) {
+    @ConditionalOnProperty({"spring.cloud.kubernetes.enabled", "spring.cloud.kubernetes.discovery.enabled"})
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, @Nullable KubernetesClientPodUtils podUtils) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
         var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();
-        log.trace("Running inside Kubernetes pod id={}, ip={}", id, ip);
+        log.trace("Running inside Kubernetes, instance id={}, ip={}", id, ip);
         builder.id(id).host(ip);
       } else {
         log.trace("Not running inside Kubernetes");
@@ -60,15 +64,57 @@ public class ElectorAutoConfiguration {
   }
 
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnMissingClass("org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils")
-  protected static class DefaultConfiguration {
+  @ConditionalOnClass(name = "org.springframework.cloud.consul.discovery.ConsulDiscoveryProperties")
+  protected static class ConsulConfiguration {
     @Bean
+    @Primary
     @ConditionalOnMissingBean
-    public InstanceInfo selfInfo(InstanceInfoBuilder builder) {
+    @ConditionalOnProperty("spring.cloud.consul.discovery.enabled")
+    public InstanceInfo selfInfo( InstanceInfoBuilder builder, @Nullable ConsulDiscoveryProperties discoveryProperties) {
+      if (discoveryProperties != null) {
+        log.trace("Running with Consul, instance id={}, ip={}",
+            discoveryProperties.getInstanceId(), discoveryProperties.getHostname());
+        builder.id(discoveryProperties.getInstanceId()).host(discoveryProperties.getHostname());
+      } else {
+        log.trace("Not running with Consul");
+      }
       return builder.build();
     }
   }
 
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(name = "org.springframework.cloud.zookeeper.discovery.ZookeeperDiscoveryProperties")
+  protected static class ZookeeperConfiguration {
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty("spring.cloud.zookeeper.discovery.enabled")
+    public InstanceInfo selfInfo(
+        InstanceInfoBuilder builder, @Nullable ZookeeperDiscoveryProperties discoveryProperties) {
+      if (discoveryProperties != null) {
+        log.trace("Running with Zookeeper, instance id={}, ip={}",
+            discoveryProperties.getInstanceId(), discoveryProperties.getInstanceHost());
+        builder.id(discoveryProperties.getInstanceId()).host(discoveryProperties.getInstanceHost());
+      } else {
+        log.trace("Not running with Zookeeper");
+      }
+      return builder.build();
+    }
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  public InstanceInfo selfInfo(InstanceInfoBuilder builder) {
+    return builder.build();
+  }
+
+  /**
+   * Provides convenient builder for customising InstanceInfo beyond the predefined configurations
+   *
+   * @param inet {@link InetUtils}
+   * @param properties {@link ElectorProperties}
+   * @return the builder
+   */
   @Bean
   public InstanceInfoBuilder selfInfoBuilder(
       @Nullable InetUtils inet, ElectorProperties properties) {

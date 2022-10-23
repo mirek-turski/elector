@@ -24,7 +24,6 @@ spring:
       heartbeat-interval-millis: 1000
       heartbeat-timeout-millis: 3000
       ballot-timeout-millis: 1000
-      pool-size: 1
       ballot-type: QUORUM
   jackson:
     serialization:

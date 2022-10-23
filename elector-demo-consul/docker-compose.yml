@@ -14,7 +14,7 @@ services:
       SPRING_CLOUD_CONSUL_HOST: consul
 #      SPRING_CLOUD_CONSUL_PORT: 8500
       SPRING_CLOUD_ELECTOR_BALLOT_TIMEOUT_MILLIS: 500
-      SPRING_CLOUD_ELECTOR_POOL_SIZE: 3
+      SPRING_CLOUD_ELECTOR_POOL_SIZE: 2
     deploy:
       mode: replicated
       replicas: 3
