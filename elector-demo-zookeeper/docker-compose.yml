@@ -25,7 +25,7 @@ services:
     environment:
       SPRING_CLOUD_ZOOKEEPER_CONNECT_STRING: zookeeper:2181
       SPRING_CLOUD_ELECTOR_BALLOT_TIMEOUT_MILLIS: 500
-      SPRING_CLOUD_ELECTOR_POOL_SIZE: 3
+      SPRING_CLOUD_ELECTOR_POOL_SIZE: 2
     deploy:
       mode: replicated
       replicas: 3
