@@ -23,6 +23,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.commons.util.InetUtils;
 import org.springframework.cloud.consul.discovery.ConsulDiscoveryProperties;
 import org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils;
+import org.springframework.cloud.kubernetes.fabric8.Fabric8PodUtils;
 import org.springframework.cloud.zookeeper.discovery.ZookeeperDiscoveryProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -45,12 +46,32 @@ public class ElectorAutoConfiguration {
 
   @Configuration(proxyBeanMethods = false)
   @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils")
-  protected static class KubernetesConfiguration {
+  protected static class KubernetesClientConfiguration {
     @Bean
     @Primary
     @ConditionalOnMissingBean
     @ConditionalOnProperty({"spring.cloud.kubernetes.enabled", "spring.cloud.kubernetes.discovery.enabled"})
     public InstanceInfo selfInfo(InstanceInfoBuilder builder, @Nullable KubernetesClientPodUtils podUtils) {
+      if (podUtils != null && podUtils.isInsideKubernetes()) {
+        var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
+        var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();
+        log.trace("Running inside Kubernetes, instance id={}, ip={}", id, ip);
+        builder.id(id).host(ip);
+      } else {
+        log.trace("Not running inside Kubernetes");
+      }
+      return builder.build();
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.fabric8.Fabric8PodUtils")
+  protected static class KubernetesFabric8Configuration {
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty({"spring.cloud.kubernetes.enabled", "spring.cloud.kubernetes.discovery.enabled"})
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, @Nullable Fabric8PodUtils podUtils) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
         var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();

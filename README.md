@@ -31,7 +31,7 @@ Any instance with an order number assigned becomes active and based on the numbe
 | spring.cloud.elector.listener-port             | int        | 12321                      | Inter-instance communication port             |
 | spring.cloud.elector.heartbeat-interval-millis | int        | 1000                       | Time between heartbeat messages               |
 | spring.cloud.elector.heartbeat-timeout-millis  | int        | 3000                       | Time after which peer instance becomes ABSENT |
-| spring.cloud.elector.ballot-timeout-millis     | int        | 1000                       |                                               |
+| spring.cloud.elector.ballot-timeout-millis     | int        | 1000                       | Time of collecting ballots                    |
 | spring.cloud.elector.pool-size                 | int        | 1                          | Number of service instances to activate       |
 | spring.cloud.elector.ballot-type               | BallotType | QUORUM                     | The way of resolving ballot                   |
 
@@ -50,7 +50,7 @@ docker-compose down
 
 ### Kubernetes Service Discovery with elector-demo-kubernetes application
 
-#### Prepare Kubernetes (miikube)
+#### Prepare Kubernetes (minikube)
 
 ```shell
 cd elector-demo-kubernetes

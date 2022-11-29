@@ -6,6 +6,9 @@ services:
       - '8500:8500'
   elector-demo-consul:
     image: elector-demo-consul
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - '8081-8083:8080'
     depends_on:

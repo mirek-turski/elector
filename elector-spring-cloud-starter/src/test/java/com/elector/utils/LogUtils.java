@@ -12,7 +12,13 @@ public class LogUtils {
 
   private static final String DEFAULT_LOG_PATTERN = "%date{HH:mm:ss.SSS} %5level{0} [%-15.15thread] %-30.30logger{39} : %msg%n";
 
-  public static Logger createConsoleLogger(String name, Level level) {
+  private LogUtils() {}
+
+  public static Logger createTestLogger(String name, Level level) {
+    return createTestLogger(name, level, null);
+  }
+
+  public static Logger createTestLogger(String name, Level level, MapAppender mapAppender) {
     LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
 
     context.getLogger("ROOT").setLevel(Level.ERROR);
@@ -26,6 +32,11 @@ public class LogUtils {
     consoleAppender.setEncoder(encoder);
     consoleAppender.setContext(context);
     consoleAppender.start();
+
+    if (mapAppender != null) {
+      mapAppender.setContext(context);
+      mapAppender.start();
+    }
 
     Logger logger = (Logger) LoggerFactory.getLogger(name);
     logger.addAppender(consoleAppender);
