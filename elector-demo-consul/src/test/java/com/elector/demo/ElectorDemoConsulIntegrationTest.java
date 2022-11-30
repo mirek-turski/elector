@@ -1,4 +1,4 @@
-package com.elector;
+package com.elector.demo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -14,7 +14,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
-public class ContainerTest {
+public class ElectorDemoConsulIntegrationTest {
 
   @Container
   private static final ConsulContainer CONSUL_CONTAINER = new ConsulContainer("consul");
