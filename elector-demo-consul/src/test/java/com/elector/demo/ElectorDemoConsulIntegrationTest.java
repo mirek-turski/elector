@@ -1,15 +1,13 @@
 package com.elector.demo;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.consul.ConsulContainer;
 import org.testcontainers.containers.DockerComposeContainer;
-import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -17,24 +15,24 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 public class ElectorDemoConsulIntegrationTest {
 
   @Container
-  private static final ConsulContainer CONSUL_CONTAINER = new ConsulContainer("consul");
-
-  @Container
-  public static GenericContainer<?> simpleWebServer
-      = new GenericContainer<>("alpine:3.2")
-      .withExposedPorts(80)
-      .withCommand("/bin/sh", "-c", "while true; do echo "
-          + "\"HTTP/1.1 200 OK\n\nHello World!\" | nc -l -p 80; done");
-
-  public static DockerComposeContainer compose =
-      new DockerComposeContainer();
+  public static DockerComposeContainer environment =
+      new DockerComposeContainer(new File("docker-compose.yml"))
+          .withExposedService("consul_1", 8500, Wait.forListeningPort())
+          .withExposedService("elector-demo-consul_1", 8080,
+              Wait.forHttp("/actuator/health").forStatusCode(200))
+          .withExposedService("elector-demo-consul_2", 8080,
+              Wait.forHttp("/actuator/health").forStatusCode(200))
+          .withExposedService("elector-demo-consul_3", 8080,
+              Wait.forHttp("/actuator/health").forStatusCode(200));
 
   @Test
   public void test() throws Exception {
-    String address = String.format("http://%s:%d",
-        simpleWebServer.getHost(), simpleWebServer.getMappedPort(80));
+    String address = String.format("http://%s:%d/actuator/info",
+        environment.getServiceHost("elector-demo-consul_1", 8080),
+        environment.getServicePort("elector-demo-consul_1", 8080));
     String response = simpleGetRequest(address);
-    assertEquals(response, "Hello World!");
+    System.out.println(response);
+//    assertEquals(response, "Hello World!");
   }
 
   private String simpleGetRequest(String address) throws Exception {

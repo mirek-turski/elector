@@ -37,8 +37,8 @@ import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.handler.GenericHandler;
@@ -75,8 +75,8 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
     this.eventPublisher = eventPublisher;
   }
 
-  /** Initiates peer management after application context gets refreshed */
-  @EventListener(ContextRefreshedEvent.class)
+  /** Initiates peer management after application started */
+  @EventListener(ApplicationReadyEvent.class)
   public void initialize() {
     Map<String, InstanceInfo> discoveredPeers = registry.discoverPeers();
     registry.getPeers().clear();
@@ -90,7 +90,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
         log.debug("Discovered peers: {}", Arrays.toString(discoveredPeers.values().toArray(new InstanceInfo[0])));
       }
       registry.getSelfInfo().setState(STATE_INTRODUCED);
-      vote();
+      requestVote();
     }
     heartbeatScheduler.scheduleAtFixedRate(
         this::heartbeat, 0L, properties.getHeartbeatIntervalMillis(), TimeUnit.MILLISECONDS);
@@ -149,11 +149,11 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
         ballots.put(event.getId(), event);
       } else {
         // Respond to the candidate peer that requested it
-        vote(registry.getPeers().get(candidateId));
+        castVote(registry.getPeers().get(candidateId));
         // If this instance is spare request for voting from another instance should also trigger
         // vote for this one, but only if there is no vote in progress
         if (registry.getSelfInfo().isSpare() && voteInitiationTime == null) {
-          vote();
+          requestVote();
         }
       }
     }
@@ -242,7 +242,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   public void resign() {
     registry.getSelfInfo().setState(STATE_SPARE);
     registry.getSelfInfo().setOrder(ORDER_UNASSIGNED);
-    vote();
+    requestVote();
   }
 
   private ElectorEvent prepareMessageEvent(
@@ -275,7 +275,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
               registry.getPeers().remove(absentPeer.getId());
               eventPublisher.publishEvent(new InstanceRemovedEvent(this, absentPeer));
               if (absentPeer.isAssigned() && registry.getSelfInfo().inState(STATE_SPARE)) {
-                vote();
+                requestVote();
               }
             } else if (absentPeer.inNeitherState(STATE_ABSENT)) {
               log.warn(
@@ -292,7 +292,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   }
 
   /** Sends a vote request to all peers */
-  private void vote() {
+  private void requestVote() {
     Map<String, String> props = new HashMap<>();
     props.put(PROPERTY_CANDIDATE, registry.getSelfInfo().getId());
     props.put(PROPERTY_ORDER, Integer.toString(registry.resolveOrder(registry.getSelfInfo())));
@@ -310,7 +310,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    *
    * @param candidate Vote requester
    */
-  private void vote(final InstanceInfo candidate) {
+  private void castVote(final InstanceInfo candidate) {
     Map<String, String> props = new HashMap<>();
     props.put(PROPERTY_CANDIDATE, candidate.getId());
     props.put(PROPERTY_ORDER, Integer.toString(registry.resolveOrder(candidate)));
@@ -331,7 +331,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
         elect();
       } else {
         log.debug("Stale quorum ballot, voting again");
-        vote();
+        requestVote();
       }
     } else if (properties.getBallotType().equals(BallotType.UNANIMOUS)) {
       if (ballots.size() == registry.getPeers().size()) {
@@ -339,7 +339,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
         elect();
       } else {
         log.debug("Stale unanimous ballot, voting again...");
-        vote();
+        requestVote();
       }
     }
   }
@@ -367,7 +367,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
       }
     } else {
       log.debug("No consensus, voting again...");
-      vote();
+      requestVote();
     }
   }
 
