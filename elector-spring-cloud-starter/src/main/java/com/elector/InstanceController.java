@@ -83,7 +83,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
     registry.getPeers().putAll(discoveredPeers);
     if (registry.getPeers().isEmpty()) {
       // No peers, so we immediately usurp the highest order
-      log.debug("No peer instances discovered. Claiming the highest order number #1");
+      log.debug("No peer instances discovered. Claiming the highest order #1");
       setInstanceReady(ORDER_HIGHEST, STATE_ACTIVE);
     } else {
       if (log.isDebugEnabled()) {

@@ -1,6 +1,7 @@
 # Elector
 
 ## Purpose
+
 Leadership election for Spring services based on service discovery provided by [Spring Cloud Kubernetes](https://spring.io/projects/spring-cloud-kubernetes).
 
 The project allows self-sustained instance management for services deployed to Kubernetes.  
@@ -49,6 +50,18 @@ docker-compose down
 ```
 
 ### Kubernetes Service Discovery with elector-demo-kubernetes application
+
+#### Service discovery prerequisites
+
+Implementation of elector depends on discoverability of the services. Any instance should be discoverable as soon as it is deployed to Kubernetes.
+However, [DiscoveryClient for Kubernetes](https://docs.spring.io/spring-cloud-kubernetes/docs/current/reference/html/#discoveryclient-for-kubernetes), by default is set only to report instances marked by Kubernetes as 'ready'.
+Fortunately, it can be changed by setting:
+
+```properties
+spring.cloud.kubernetes.discovery.include-not-ready-addresses=true
+```
+
+It is worth mentioning that 'readiness' is managed by Kubernetes probes. If you use them in your K8s configuration, make sure the above property is set for your service.
 
 #### Prepare Kubernetes (minikube)
 

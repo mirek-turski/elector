@@ -6,6 +6,7 @@ import static com.elector.Constant.STATE_ACTIVE;
 import static com.elector.Constant.STATE_SPARE;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.Arrays;
@@ -21,13 +22,13 @@ public class InstanceInfo implements Serializable {
   private final long weight;
   private transient Instant last;
 
-  InstanceInfo(
-      String id,
-      String host,
-      String state,
-      int order,
-      long weight,
-      Instant last) {
+  public InstanceInfo(
+      @JsonProperty("id") String id,
+      @JsonProperty("host") String host,
+      @JsonProperty("state") String state,
+      @JsonProperty("order") int order,
+      @JsonProperty("weight") long weight,
+      @JsonProperty("last") Instant last) {
     this.id = id;
     this.host = host;
     this.state = state;
