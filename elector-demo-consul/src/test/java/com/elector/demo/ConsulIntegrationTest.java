@@ -2,6 +2,12 @@ package com.elector.demo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.ConsoleAppender;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
@@ -13,6 +19,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import lombok.Data;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.DockerComposeContainer;
@@ -76,6 +83,24 @@ public class ConsulIntegrationTest {
     restTemplate = new RestTemplate();
     var converter = new MappingJackson2HttpMessageConverter();
     restTemplate.setMessageConverters(List.of(converter));
+
+
+    LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+    context.getLogger("ROOT").setLevel(Level.DEBUG);
+    PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+    encoder.setPattern("%date{HH:mm:ss.SSS} %5level{0} [%-15.15thread] %-30.30logger{39} : %msg%n");
+    encoder.setContext(context);
+    encoder.start();
+
+    ConsoleAppender<ILoggingEvent> consoleAppender = new ConsoleAppender<>();
+    consoleAppender.setEncoder(encoder);
+    consoleAppender.setContext(context);
+    consoleAppender.start();
+
+    Logger logger = (Logger) LoggerFactory.getLogger("com.elector.demo");
+    logger.addAppender(consoleAppender);
+    logger.setLevel(Level.DEBUG);
+    logger.setAdditive(false); /* set to true if root should log too */
   }
 
   public static WaitingConsumer logConsumer1 = new WaitingConsumer();

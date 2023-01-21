@@ -122,7 +122,6 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
 
     log.trace("Received {}", event);
 
-    // Take the note of the sender whatever the event type
     final InstanceInfo sender =
         InstanceInfo.builder()
             .id(event.getId())
@@ -131,16 +130,20 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
             .order(event.getOrder())
             .weight(event.getWeight())
             .build();
-    sender.setLast(Instant.now());
-    if (registry.getPeers().containsKey(sender.getId()) &&
-        registry.getPeers().get(sender.getId()).inState(STATE_ABSENT)) {
-      log.info(
-          "Instance {} [{}] is back online in {} state",
-          sender.getId(),
-          sender.getHost(),
-          sender.getState());
+
+    // Take the note of the sender whatever the event type
+    if (!sender.equals(registry.getSelfInfo())) {
+      sender.setLast(Instant.now());
+      if (registry.getPeers().containsKey(sender.getId()) &&
+          registry.getPeers().get(sender.getId()).inState(STATE_ABSENT)) {
+        log.info(
+            "Instance {} [{}] is back online in {} state",
+            sender.getId(),
+            sender.getHost(),
+            sender.getState());
+      }
+      registry.getPeers().put(sender.getId(), sender);
     }
-    registry.getPeers().put(sender.getId(), sender);
 
     if (EVENT_VOTE.equals(event.getEvent())) {
       final String candidateId = getEventProperty(event, PROPERTY_CANDIDATE);
@@ -148,7 +151,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
         // Register response from a peer to our vote request
         ballots.put(event.getId(), event);
       } else {
-        // Respond to the candidate peer that requested it
+        // Respond to the candidate peer that requested that
         castVote(registry.getPeers().get(candidateId));
         // If this instance is spare request for voting from another instance should also trigger
         // vote for this one, but only if there is no vote in progress
