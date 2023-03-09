@@ -86,7 +86,7 @@ public class ConsulIntegrationTest {
 
 
     LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-    context.getLogger("ROOT").setLevel(Level.DEBUG);
+    context.getLogger("ROOT").setLevel(Level.INFO);
     PatternLayoutEncoder encoder = new PatternLayoutEncoder();
     encoder.setPattern("%date{HH:mm:ss.SSS} %5level{0} [%-15.15thread] %-30.30logger{39} : %msg%n");
     encoder.setContext(context);
