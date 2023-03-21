@@ -9,7 +9,6 @@ import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.ConsoleAppender;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import lombok.Data;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -108,8 +108,8 @@ public class ConsulIntegrationTest {
   public static WaitingConsumer logConsumer3 = new WaitingConsumer();
 
   @Container
-  public static DockerComposeContainer environment =
-      new DockerComposeContainer(new File("docker-compose.yml"))
+  public static DockerComposeContainer<?> environment =
+      new DockerComposeContainer<>(new File("docker-compose.yml"))
           .withExposedService("consul_1", 8500, Wait.forListeningPort())
           .withExposedService("elector-demo-consul_1", 8080,
               Wait.forHttp("/actuator/health").forStatusCode(200))
@@ -122,7 +122,7 @@ public class ConsulIntegrationTest {
           .withLogConsumer("elector-demo-consul_3", logConsumer3);
 
   @Test
-  public void testElectorRoutinesResult() throws JsonProcessingException, TimeoutException {
+  public void testElectorRoutinesResult() throws TimeoutException {
 
     // Wait until all instances log 'This InstanceInfo' log message indicating end of elector routines
     logConsumer1.waitUntil(LogPredicate.INSTANCE, 30, TimeUnit.SECONDS);
@@ -133,16 +133,25 @@ public class ConsulIntegrationTest {
     var info1 = restTemplate.getForObject(getInstanceAddress("elector-demo-consul_1") + "/actuator/info",
         InfoData.class);
     var instances1 = getInstances(info1);
+    assertInstanceConfiguration(instances1);
     var info2 = restTemplate.getForObject(getInstanceAddress("elector-demo-consul_2") + "/actuator/info",
         InfoData.class);
     var instances2 = getInstances(info2);
+    assertInstanceConfiguration(instances2);
     assertThat(instances2).hasSameElementsAs(instances1);
     var info3 = restTemplate.getForObject(getInstanceAddress("elector-demo-consul_3") + "/actuator/info",
         InfoData.class);
     var instances3 = getInstances(info3);
+    assertInstanceConfiguration(instances3);
     assertThat(instances3).hasSameElementsAs(instances2);
+  }
 
-    // TODO: Assert the configuration of the instances after election
+  private void assertInstanceConfiguration(List<InstanceInfoData> instances) {
+    var instancesMap = instances.stream().collect(Collectors.toMap(InstanceInfoData::getOrder, info -> info));
+    assertThat(instancesMap).hasSize(3);
+    assertThat(instancesMap.get(0).getState()).isEqualTo("spare");
+    assertThat(instancesMap.get(1).getState()).isEqualTo("active");
+    assertThat(instancesMap.get(2).getState()).isEqualTo("active");
   }
 
   private List<InstanceInfoData> getInstances(InfoData info) {
