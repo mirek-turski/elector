@@ -2,6 +2,7 @@ package com.elector;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import java.io.Serializable;
@@ -14,7 +15,7 @@ import javax.validation.constraints.NotBlank;
  */
 @JsonDeserialize(builder = ElectorEvent.EventBuilder.class)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonInclude(Include.NON_ABSENT)
 public class ElectorEvent implements Serializable {
   @NotBlank private final String event;
   @NotBlank private final String id;
@@ -22,7 +23,7 @@ public class ElectorEvent implements Serializable {
   @NotBlank private final String state;
   private final int order;
   private final long weight;
-  @Nullable private final Map<String, String> properties;
+  private final Map<String, String> properties;
 
   ElectorEvent(
       @NotBlank String event,
@@ -31,7 +32,7 @@ public class ElectorEvent implements Serializable {
       @NotBlank String state,
       int order,
       long weight,
-      @Nullable Map<String, String> properties) {
+      Map<String, String> properties) {
     this.event = event;
     this.id = id;
     this.host = host;

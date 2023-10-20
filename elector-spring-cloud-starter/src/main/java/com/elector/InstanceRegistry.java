@@ -15,12 +15,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.discovery.composite.CompositeDiscoveryClient;
+import org.springframework.lang.NonNull;
 
 /**
  * Manages instances of the service including discovery and resolution of order.
@@ -60,9 +60,7 @@ public class InstanceRegistry {
         clients =
             ((CompositeDiscoveryClient) discoveryClient)
                 .getDiscoveryClients().stream()
-                .map(DiscoveryClient::description)
-                .collect(Collectors.toList())
-                .toString();
+                .map(DiscoveryClient::description).toList().toString();
       } else {
         clients = discoveryClient.getClass().getSimpleName();
       }
@@ -99,7 +97,7 @@ public class InstanceRegistry {
    * @param candidate candidate to be checked.
    * @return Order number.
    */
-  public int resolveOrder(@NotNull final InstanceInfo candidate) {
+  public int resolveOrder(@NonNull final InstanceInfo candidate) {
     if (candidate.inNeitherState(STATE_INTRODUCED, STATE_SPARE)) {
       return candidate.isActive() ? candidate.getOrder() : ORDER_UNASSIGNED;
     }
@@ -109,8 +107,7 @@ public class InstanceRegistry {
                 peer ->
                     peer.isActive()
                         || (peer.inState(STATE_ABSENT) && peer.getOrder() > ORDER_UNASSIGNED))
-            .map(InstanceInfo::getOrder)
-            .collect(Collectors.toList());
+            .map(InstanceInfo::getOrder).toList();
     final List<Integer> availableOrderNumbers =
         IntStream.range(1, properties.getPoolSize() + 1).boxed().collect(Collectors.toList());
     availableOrderNumbers.removeAll(takenOrderNumbers);
@@ -120,8 +117,7 @@ public class InstanceRegistry {
     final List<InstanceInfo> weightedUsurpers =
         Stream.concat(peers.values().stream(), Stream.of(selfInfo))
             .filter(peer -> peer.inEitherState(STATE_INTRODUCED, STATE_SPARE))
-            .sorted(Comparator.comparingLong(InstanceInfo::getWeight).reversed())
-            .collect(Collectors.toList());
+            .sorted(Comparator.comparingLong(InstanceInfo::getWeight).reversed()).toList();
     final int candidateIndex =
         IntStream.range(0, weightedUsurpers.size())
             .filter(index -> candidate.equals(weightedUsurpers.get(index)))

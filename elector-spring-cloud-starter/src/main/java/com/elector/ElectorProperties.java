@@ -78,11 +78,11 @@ public class ElectorProperties {
     return this.serviceName;
   }
 
-  public @Nullable String getInstanceId() {
+  public String getInstanceId() {
     return this.instanceId;
   }
 
-  public @Nullable String getHostname() {
+  public String getHostname() {
     return this.hostname;
   }
 
@@ -118,11 +118,11 @@ public class ElectorProperties {
     this.serviceName = serviceName;
   }
 
-  public void setInstanceId(@Nullable String instanceId) {
+  public void setInstanceId(String instanceId) {
     this.instanceId = instanceId;
   }
 
-  public void setHostname(@Nullable String hostname) {
+  public void setHostname(String hostname) {
     this.hostname = hostname;
   }
 

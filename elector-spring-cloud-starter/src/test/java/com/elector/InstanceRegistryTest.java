@@ -10,8 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import javax.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
+import org.springframework.lang.NonNull;
 
 public class InstanceRegistryTest {
 
@@ -83,8 +83,8 @@ public class InstanceRegistryTest {
 
   private void assertOrder(
       int expected,
-      @NotNull InstanceInfo self,
-      @NotNull InstanceInfo candidate,
+      @NonNull InstanceInfo self,
+      @NonNull InstanceInfo candidate,
       List<InstanceInfo> discovered,
       List<InstanceInfo> introduced,
       int... readyOrderValues) {

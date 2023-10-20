@@ -10,8 +10,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.Arrays;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import org.springframework.lang.NonNull;
 
 /** Holds service instance information */
 public class InstanceInfo implements Serializable {
@@ -71,15 +70,15 @@ public class InstanceInfo implements Serializable {
     return inState(STATE_SPARE);
   }
 
-  public boolean inState(@NotNull String checkedState) {
+  public boolean inState(@NonNull String checkedState) {
     return checkedState.equals(this.state);
   }
 
-  public boolean inEitherState(@NotEmpty String... states) {
+  public boolean inEitherState(String...states) {
     return Arrays.stream(states).anyMatch(checkedState -> checkedState.equals(this.state));
   }
 
-  public boolean inNeitherState(@NotEmpty String... states) {
+  public boolean inNeitherState(String...states) {
     return !inEitherState(states);
   }
 

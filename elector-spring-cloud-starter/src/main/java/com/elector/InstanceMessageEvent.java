@@ -1,9 +1,8 @@
 package com.elector;
 
-import org.springframework.context.ApplicationEvent;
-
-import javax.validation.constraints.NotNull;
 import java.util.Map;
+import org.springframework.context.ApplicationEvent;
+import org.springframework.lang.NonNull;
 
 /** Event sent on arrival of custom message from another peer. */
 public class InstanceMessageEvent extends ApplicationEvent {
@@ -21,10 +20,10 @@ public class InstanceMessageEvent extends ApplicationEvent {
    * @param properties Properties of the message
    */
   public InstanceMessageEvent(
-      @NotNull Object source,
-      @NotNull InstanceInfo sender,
-      @NotNull String messageId,
-      @NotNull Map<String, String> properties) {
+      @NonNull Object source,
+      @NonNull InstanceInfo sender,
+      @NonNull String messageId,
+      @NonNull Map<String, String> properties) {
     super(source);
     this.sender = sender;
     this.messageId = messageId;

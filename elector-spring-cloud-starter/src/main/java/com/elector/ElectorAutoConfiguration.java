@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.autoconfigure.info.ConditionalOnEnabledInfoContributor;
@@ -51,7 +50,7 @@ public class ElectorAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean
     @ConditionalOnProperty({"spring.cloud.kubernetes.enabled", "spring.cloud.kubernetes.discovery.enabled"})
-    public InstanceInfo selfInfo(InstanceInfoBuilder builder, @Nullable KubernetesClientPodUtils podUtils) {
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, KubernetesClientPodUtils podUtils) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
         var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();
@@ -71,7 +70,7 @@ public class ElectorAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean
     @ConditionalOnProperty({"spring.cloud.kubernetes.enabled", "spring.cloud.kubernetes.discovery.enabled"})
-    public InstanceInfo selfInfo(InstanceInfoBuilder builder, @Nullable Fabric8PodUtils podUtils) {
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, Fabric8PodUtils podUtils) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
         var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();
@@ -91,7 +90,7 @@ public class ElectorAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean
     @ConditionalOnProperty("spring.cloud.consul.discovery.enabled")
-    public InstanceInfo selfInfo( InstanceInfoBuilder builder, @Nullable ConsulDiscoveryProperties discoveryProperties) {
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, ConsulDiscoveryProperties discoveryProperties) {
       if (discoveryProperties != null) {
         log.trace("Running with Consul, instance id={}, ip={}",
             discoveryProperties.getInstanceId(), discoveryProperties.getHostname());
@@ -110,8 +109,7 @@ public class ElectorAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean
     @ConditionalOnProperty("spring.cloud.zookeeper.discovery.enabled")
-    public InstanceInfo selfInfo(
-        InstanceInfoBuilder builder, @Nullable ZookeeperDiscoveryProperties discoveryProperties) {
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, ZookeeperDiscoveryProperties discoveryProperties) {
       if (discoveryProperties != null) {
         log.trace("Running with Zookeeper, instance id={}, ip={}",
             discoveryProperties.getInstanceId(), discoveryProperties.getInstanceHost());
@@ -138,7 +136,7 @@ public class ElectorAutoConfiguration {
    */
   @Bean
   public InstanceInfoBuilder selfInfoBuilder(
-      @Nullable InetUtils inet, ElectorProperties properties) {
+      InetUtils inet, ElectorProperties properties) {
     String hostname = "127.0.0.1";
     if (properties.getHostname() != null && !properties.getHostname().isBlank()) {
       hostname = properties.getHostname();
@@ -177,9 +175,7 @@ public class ElectorAutoConfiguration {
    */
   @Bean
   public IntegrationFlow electorOutUdpAdapter() {
-    return f ->
-        f.transform(Transformers.toJson())
-            .handle(Udp.outboundAdapter(m -> m.getHeaders().get(HEADER_TARGET)));
+    return f -> f.transform(Transformers.toJson()).handle(Udp.outboundAdapter(m -> m.getHeaders().get(HEADER_TARGET)));
   }
 
   @Bean
@@ -188,8 +184,7 @@ public class ElectorAutoConfiguration {
       InstanceRegistry instanceRegistry,
       IntegrationFlow electorOutUdpAdapter,
       ApplicationEventPublisher eventPublisher) {
-    return new InstanceController(
-        properties, instanceRegistry, electorOutUdpAdapter, eventPublisher);
+    return new InstanceController(properties, instanceRegistry, electorOutUdpAdapter, eventPublisher);
   }
 
   @Bean

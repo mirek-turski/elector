@@ -31,9 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import javax.annotation.PreDestroy;
-import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -42,6 +40,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.handler.GenericHandler;
+import org.springframework.lang.NonNull;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.support.MessageBuilder;
 
@@ -188,7 +187,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    *
    * @param id Message id
    */
-  public void broadcastMessage(@NotNull final String id) {
+  public void broadcastMessage(@NonNull final String id) {
     broadcastMessage(id, null);
   }
 
@@ -199,7 +198,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    * @param properties Message properties
    */
   public void broadcastMessage(
-      @NotNull final String id, @Nullable final Map<String, String> properties) {
+      @NonNull final String id, final Map<String, String> properties) {
     notifyPeers(prepareMessageEvent(id, properties), registry.getPeers().values());
   }
 
@@ -209,7 +208,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    * @param destination The peer to send to
    * @param id Message id
    */
-  public void sendMessage(@NotNull InstanceInfo destination, @NotNull final String id) {
+  public void sendMessage(@NonNull InstanceInfo destination, @NonNull final String id) {
     sendMessage(destination, id, null);
   }
 
@@ -221,9 +220,9 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
    * @param properties Message properties
    */
   public void sendMessage(
-      @NotNull InstanceInfo destination,
-      @NotNull final String id,
-      @Nullable final Map<String, String> properties) {
+      @NonNull InstanceInfo destination,
+      @NonNull final String id,
+      final Map<String, String> properties) {
     notifyPeers(prepareMessageEvent(id, properties), List.of(destination));
   }
 
@@ -249,7 +248,7 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   }
 
   private ElectorEvent prepareMessageEvent(
-      @NotNull final String id, @Nullable final Map<String, String> properties) {
+      @NonNull final String id, final Map<String, String> properties) {
     Map<String, String> props = new HashMap<>();
     props.put(PROPERTY_MESSAGE_ID, id);
     if (properties != null) {
@@ -261,11 +260,8 @@ public class InstanceController implements GenericHandler<ElectorEvent> {
   private void checkPeers() {
     final List<InstanceInfo> absentPeers =
         registry.getPeers().values().stream()
-            .filter(
-                peer ->
-                    Duration.between(peer.getLast(), Instant.now()).toMillis()
-                        > properties.getHeartbeatTimeoutMillis())
-            .collect(Collectors.toList());
+            .filter(peer -> Duration.between(peer.getLast(), Instant.now()).toMillis()
+                        > properties.getHeartbeatTimeoutMillis()).toList();
     if (!absentPeers.isEmpty()) {
       // Firstly, confirm that the absent peer is not discoverable (i.e. disappeared from
       // Kubernetes).
