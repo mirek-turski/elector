@@ -44,12 +44,13 @@ public class ElectorAutoConfiguration {
   private static final Logger log = LoggerFactory.getLogger(ElectorAutoConfiguration.class);
 
   @Configuration(proxyBeanMethods = false)
+  @ConditionalOnProperty("spring.cloud.kubernetes.enabled")
   @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils")
   protected static class KubernetesClientConfiguration {
     @Bean
     @Primary
     @ConditionalOnMissingBean
-    @ConditionalOnProperty({"spring.cloud.kubernetes.enabled", "spring.cloud.kubernetes.discovery.enabled"})
+    @ConditionalOnProperty("spring.cloud.kubernetes.discovery.enabled")
     public InstanceInfo selfInfo(InstanceInfoBuilder builder, KubernetesClientPodUtils podUtils) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
@@ -64,12 +65,13 @@ public class ElectorAutoConfiguration {
   }
 
   @Configuration(proxyBeanMethods = false)
+  @ConditionalOnProperty("spring.cloud.kubernetes.enabled")
   @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.fabric8.Fabric8PodUtils")
   protected static class KubernetesFabric8Configuration {
     @Bean
     @Primary
     @ConditionalOnMissingBean
-    @ConditionalOnProperty({"spring.cloud.kubernetes.enabled", "spring.cloud.kubernetes.discovery.enabled"})
+    @ConditionalOnProperty("spring.cloud.kubernetes.discovery.enabled")
     public InstanceInfo selfInfo(InstanceInfoBuilder builder, Fabric8PodUtils podUtils) {
       if (podUtils != null && podUtils.isInsideKubernetes()) {
         var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
@@ -84,6 +86,7 @@ public class ElectorAutoConfiguration {
   }
 
   @Configuration(proxyBeanMethods = false)
+  @ConditionalOnProperty("spring.cloud.consul.enabled")
   @ConditionalOnClass(name = "org.springframework.cloud.consul.discovery.ConsulDiscoveryProperties")
   protected static class ConsulConfiguration {
     @Bean
@@ -103,6 +106,7 @@ public class ElectorAutoConfiguration {
   }
 
   @Configuration(proxyBeanMethods = false)
+  @ConditionalOnProperty("spring.cloud.zookeeper.enabled")
   @ConditionalOnClass(name = "org.springframework.cloud.zookeeper.discovery.ZookeeperDiscoveryProperties")
   protected static class ZookeeperConfiguration {
     @Bean

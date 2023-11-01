@@ -84,20 +84,19 @@ public class ConsulIntegrationTest {
     var converter = new MappingJackson2HttpMessageConverter();
     restTemplate.setMessageConverters(List.of(converter));
 
-
-    LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+    var context = (LoggerContext) LoggerFactory.getILoggerFactory();
     context.getLogger("ROOT").setLevel(Level.INFO);
-    PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+    var encoder = new PatternLayoutEncoder();
     encoder.setPattern("%date{HH:mm:ss.SSS} %5level{0} [%-15.15thread] %-30.30logger{39} : %msg%n");
     encoder.setContext(context);
     encoder.start();
 
-    ConsoleAppender<ILoggingEvent> consoleAppender = new ConsoleAppender<>();
+    var consoleAppender = new ConsoleAppender<ILoggingEvent>();
     consoleAppender.setEncoder(encoder);
     consoleAppender.setContext(context);
     consoleAppender.start();
 
-    Logger logger = (Logger) LoggerFactory.getLogger("com.elector.demo");
+    var logger = (Logger) LoggerFactory.getLogger("com.elector.demo");
     logger.addAppender(consoleAppender);
     logger.setLevel(Level.DEBUG);
     logger.setAdditive(false); /* set to true if root should log too */

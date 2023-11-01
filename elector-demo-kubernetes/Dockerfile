@@ -1,5 +1,4 @@
-#FROM openjdk:11
-FROM adoptopenjdk/openjdk11:alpine-slim
+FROM openjdk:17-jdk-slim
 VOLUME /tmp
 ARG JAR_FILE=target/*.jar
 ARG JAVA_OPTS="-DSPRING_APPLICATION_NAME=elector-demo"
