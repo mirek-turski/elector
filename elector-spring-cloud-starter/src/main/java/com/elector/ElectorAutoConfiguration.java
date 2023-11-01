@@ -14,8 +14,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.autoconfigure.info.ConditionalOnEnabledInfoContributor;
 import org.springframework.boot.actuate.info.InfoContributor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnCloudPlatform;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.cloud.CloudPlatform;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
@@ -29,9 +31,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.integration.dsl.IntegrationFlow;
-import org.springframework.integration.dsl.IntegrationFlows;
 import org.springframework.integration.dsl.Transformers;
 import org.springframework.integration.ip.dsl.Udp;
+import org.springframework.lang.NonNull;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
@@ -44,17 +46,17 @@ public class ElectorAutoConfiguration {
   private static final Logger log = LoggerFactory.getLogger(ElectorAutoConfiguration.class);
 
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnProperty("spring.cloud.kubernetes.enabled")
+  @ConditionalOnCloudPlatform(CloudPlatform.KUBERNETES)
   @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.client.KubernetesClientPodUtils")
   protected static class KubernetesClientConfiguration {
     @Bean
     @Primary
     @ConditionalOnMissingBean
     @ConditionalOnProperty("spring.cloud.kubernetes.discovery.enabled")
-    public InstanceInfo selfInfo(InstanceInfoBuilder builder, KubernetesClientPodUtils podUtils) {
-      if (podUtils != null && podUtils.isInsideKubernetes()) {
-        var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
-        var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, @NonNull KubernetesClientPodUtils kubernetesClientPodUtils) {
+      if (kubernetesClientPodUtils.isInsideKubernetes()) {
+        var id = Objects.requireNonNull(kubernetesClientPodUtils.currentPod().get().getMetadata()).getUid();
+        var ip = Objects.requireNonNull(kubernetesClientPodUtils.currentPod().get().getStatus()).getPodIP();
         log.trace("Running inside Kubernetes, instance id={}, ip={}", id, ip);
         builder.id(id).host(ip);
       } else {
@@ -65,17 +67,17 @@ public class ElectorAutoConfiguration {
   }
 
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnProperty("spring.cloud.kubernetes.enabled")
+  @ConditionalOnCloudPlatform(CloudPlatform.KUBERNETES)
   @ConditionalOnClass(name = "org.springframework.cloud.kubernetes.fabric8.Fabric8PodUtils")
   protected static class KubernetesFabric8Configuration {
     @Bean
     @Primary
     @ConditionalOnMissingBean
     @ConditionalOnProperty("spring.cloud.kubernetes.discovery.enabled")
-    public InstanceInfo selfInfo(InstanceInfoBuilder builder, Fabric8PodUtils podUtils) {
-      if (podUtils != null && podUtils.isInsideKubernetes()) {
-        var id = Objects.requireNonNull(podUtils.currentPod().get().getMetadata()).getUid();
-        var ip = Objects.requireNonNull(podUtils.currentPod().get().getStatus()).getPodIP();
+    public InstanceInfo selfInfo(InstanceInfoBuilder builder, @NonNull Fabric8PodUtils fabric8PodUtils) {
+      if (fabric8PodUtils.isInsideKubernetes()) {
+        var id = fabric8PodUtils.currentPod().get().getMetadata().getUid();
+        var ip = fabric8PodUtils.currentPod().get().getStatus().getPodIP();
         log.trace("Running inside Kubernetes, instance id={}, ip={}", id, ip);
         builder.id(id).host(ip);
       } else {
@@ -139,8 +141,7 @@ public class ElectorAutoConfiguration {
    * @return the builder
    */
   @Bean
-  public InstanceInfoBuilder selfInfoBuilder(
-      InetUtils inet, ElectorProperties properties) {
+  public InstanceInfoBuilder selfInfoBuilder(InetUtils inet, ElectorProperties properties) {
     String hostname = "127.0.0.1";
     if (properties.getHostname() != null && !properties.getHostname().isBlank()) {
       hostname = properties.getHostname();
@@ -164,9 +165,8 @@ public class ElectorAutoConfiguration {
    * @return The flow
    */
   @Bean
-  public IntegrationFlow electorInUdpAdapter(
-      final InstanceController controller, final ElectorProperties properties) {
-    return IntegrationFlows.from(Udp.inboundAdapter(properties.getListenerPort()))
+  public IntegrationFlow electorInUdpAdapter(InstanceController controller, ElectorProperties properties) {
+    return IntegrationFlow.from(Udp.inboundAdapter(properties.getListenerPort()))
         .transform(Transformers.fromJson(ElectorEvent.class))
         .handle(ElectorEvent.class, controller)
         .get();
@@ -183,17 +183,13 @@ public class ElectorAutoConfiguration {
   }
 
   @Bean
-  public InstanceController instanceController(
-      ElectorProperties properties,
-      InstanceRegistry instanceRegistry,
-      IntegrationFlow electorOutUdpAdapter,
+  public InstanceController instanceController(ElectorProperties properties, InstanceRegistry instanceRegistry, IntegrationFlow electorOutUdpAdapter,
       ApplicationEventPublisher eventPublisher) {
     return new InstanceController(properties, instanceRegistry, electorOutUdpAdapter, eventPublisher);
   }
 
   @Bean
-  public InstanceRegistry instanceRegistry(
-      ElectorProperties properties, InstanceInfo selfInfo, DiscoveryClient discoveryClient) {
+  public InstanceRegistry instanceRegistry(ElectorProperties properties, InstanceInfo selfInfo, DiscoveryClient discoveryClient) {
     return new InstanceRegistry(properties, selfInfo, discoveryClient);
   }
 
@@ -202,8 +198,7 @@ public class ElectorAutoConfiguration {
   protected static class InstancesActuatorConfiguration {
     @Bean
     @ConditionalOnEnabledInfoContributor("instances")
-    public InstanceInfoContributor instanceInfoContributor(
-        InstanceRegistry instanceRegistry) {
+    public InstanceInfoContributor instanceInfoContributor(InstanceRegistry instanceRegistry) {
       return new InstanceInfoContributor(instanceRegistry);
     }
   }

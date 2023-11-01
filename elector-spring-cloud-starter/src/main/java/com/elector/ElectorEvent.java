@@ -5,10 +5,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+import jakarta.validation.constraints.NotBlank;
 import java.io.Serializable;
 import java.util.Map;
 import javax.annotation.Nullable;
-import javax.validation.constraints.NotBlank;
 
 /**
  * Contract for communication between instances
@@ -17,7 +17,8 @@ import javax.validation.constraints.NotBlank;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_ABSENT)
 public class ElectorEvent implements Serializable {
-  @NotBlank private final String event;
+  @NotBlank
+  private final String event;
   @NotBlank private final String id;
   @NotBlank private final String host;
   @NotBlank private final String state;

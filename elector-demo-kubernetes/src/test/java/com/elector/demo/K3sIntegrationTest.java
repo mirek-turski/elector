@@ -82,20 +82,20 @@ public class K3sIntegrationTest {
         .orElseThrow(() -> new RuntimeException("No V1Role in update-default-service-account.yml"));
     var roleBinding = configs.stream().filter(o -> o instanceof V1RoleBinding).map(o -> (V1RoleBinding)o).findFirst()
         .orElseThrow(() -> new RuntimeException("No V1RoleBinding in update-default-service-account.yml"));
-    rbacApi.createNamespacedRole("default", role, null, null, null);
-    rbacApi.createNamespacedRoleBinding("default", roleBinding, null, null, null);
+    rbacApi.createNamespacedRole("default", role, null, null, null, null);
+    rbacApi.createNamespacedRoleBinding("default", roleBinding, null, null, null, null);
 
     // Use core V1 API to create service
     var deploymentYaml = Paths.get("elector-demo-deployment.yml").toAbsolutePath();
     configs = Yaml.loadAll(deploymentYaml.toFile());
     var service = configs.stream().filter(o -> o instanceof V1Service).map(o -> (V1Service)o).findFirst()
         .orElseThrow(() -> new RuntimeException("No V1Service in elector-demo-deployment.yml"));
-    coreApi.createNamespacedService("default", service, null, null, null);
+    coreApi.createNamespacedService("default", service, null, null, null, null);
 
     // Use Apps V1 API to create deployment
     var deployment = configs.stream().filter(o -> o instanceof V1Deployment).map(o -> (V1Deployment)o).findFirst()
         .orElseThrow(() -> new RuntimeException("No V1Deployment in elector-demo-deployment.yml"));
-    appsApi.createNamespacedDeployment("default", deployment, null, null, null);
+    appsApi.createNamespacedDeployment("default", deployment, null, null, null, null);
 
     // Get the pods
     var podList = coreApi.listNamespacedPod("default", null, true, null, null, null, 100, null, null, 5, false);
